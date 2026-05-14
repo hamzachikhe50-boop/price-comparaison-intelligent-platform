@@ -2,20 +2,6 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   scraper_service.py  –  Orchestration du scraping
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  Deux flux principaux :
-
-  1. SYNC URLS (urls.py)
-     POST /scrape/sync-urls
-     → Lance un worker qui scrape les menus des 3 sites
-       via urls.py (httpx + selectolax) et stocke les
-       CategoryUrl en base de données.
-
-  2. SCRAPE PRODUCTS
-     POST /scrape/start
-     → Lit les CategoryUrl actives depuis la DB,
-       les distribue aux scrapers (Spacenet, Tunisianet,
-       Mytek) et stocke les produits avec upsert.
 """
 
 import uuid
@@ -27,7 +13,6 @@ import base64 # Ajouté pour la capture d'écran dans les logs
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Dict, Any
 from playwright.async_api import async_playwright
-from playwright_stealth import stealth_async # Ajouté pour contourner Cloudflare
 
 import httpx
 import selectolax.parser
@@ -90,7 +75,7 @@ CONFIGS_HTML = {
 async def _fetch_html_categories(boutique: str) -> List[Dict]:
     """
     Scrape les catégories d'un site HTML statique (Spacenet ou Tunisianet)
-    en utilisant httpx + selectolax, exactement comme dans urls.py.
+    en utilisant httpx + selectolax.
     """
     config   = CONFIGS_HTML[boutique]
     base_url = config["url"]
@@ -155,7 +140,6 @@ async def _fetch_html_categories(boutique: str) -> List[Dict]:
         except Exception as e:
             logger.error(f"[sync_urls] Erreur {boutique} : {e}")
 
-    # Dédoublonnage par URL
     seen   = set()
     unique = []
     for item in categories_raw:
@@ -169,8 +153,8 @@ async def _fetch_html_categories(boutique: str) -> List[Dict]:
 
 async def _fetch_mytek_categories() -> List[Dict]:
     """
-    Scrape le menu de Mytek en forçant l'affichage GLOBAL via CSS injection
-    et en utilisant Stealth pour contourner les protections anti-bots.
+    Scrape le menu de Mytek avec anti-détection intégré et capture d'écran
+    en cas d'échec pour voir ce que Render voit réellement.
     """
     categories_raw: List[Dict] = []
 
@@ -192,8 +176,12 @@ async def _fetch_mytek_categories() -> List[Dict]:
         try:
             page = await context.new_page()
             
-            # AJOUT IMPORTANT : Rendre Playwright indétectable (contourne Cloudflare)
-            await stealth_async(page)
+            # SCRIPT ANTI-DETECTION : Cache le flag "webdriver" pour tromper Cloudflare
+            await page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+            """)
             
             # Bloquer images/polices pour accélérer le chargement sur Render
             await page.route(
@@ -214,7 +202,7 @@ async def _fetch_mytek_categories() -> List[Dict]:
                 except Exception:
                     pass
 
-                # --- SOLUTION "NUCLÉAIRE" : Injection de style CSS global ---
+                # Injection CSS pour forcer l'affichage
                 logger.info("Injection CSS globale pour forcer la visibilité du menu...")
                 await page.evaluate("""
                     () => {
@@ -232,16 +220,16 @@ async def _fetch_mytek_categories() -> List[Dict]:
                 
                 await asyncio.sleep(1)
 
-                # Attendre EXPLICITEMENT que le menu soit là
+                # Attendre que le menu soit là
                 try:
                     await page.wait_for_selector("ul.vertical-list > li.rootverticalnav", timeout=15000)
                     rayon_items = await page.locator("ul.vertical-list > li.rootverticalnav").all()
                 except Exception as e:
-                    logger.error(f"Le menu de Mytek n'a pas été trouvé à temps.")
-                    # Capture d'écran en Base64 pour la lire directement dans les logs de Render
+                    logger.error("Le menu de Mytek n'a pas été trouvé à temps.")
+                    # CAPTURE D'ÉCRAN EN BASE64 : Permet de voir l'image dans les logs
                     screenshot_bytes = await page.screenshot()
                     b64_image = base64.b64encode(screenshot_bytes).decode('utf-8')
-                    logger.error(f"VOIR CAPTURE (copier-coller cette ligne dans un navigateur) : data:image/png;base64,{b64_image}")
+                    logger.error(f"VOIR CAPTURE (copier-coller tout le texte ci-après dans la barre d'adresse de ton navigateur) : data:image/png;base64,{b64_image}")
                     rayon_items = []
 
                 logger.info(f"{len(rayon_items)} rayons détectés.")
@@ -260,9 +248,8 @@ async def _fetch_mytek_categories() -> List[Dict]:
                                 rayon_html = await item.inner_html()
                                 tree = selectolax.parser.HTMLParser(rayon_html)
                             except Exception as hover_err:
-                                logger.warning(f"Hover impossible pour l'item {index}, on utilise le HTML statique: {hover_err}")
+                                logger.warning(f"Hover impossible pour l'item {index}: {hover_err}")
 
-                        # Nom du rayon
                         name_tag = tree.css_first("span.main-category-name")
                         rayon_name = "Rayon Inconnu"
                         if name_tag:
@@ -271,7 +258,6 @@ async def _fetch_mytek_categories() -> List[Dict]:
                         if not rayon_name or len(rayon_name) < 2:
                             continue
 
-                        # Parsing des liens
                         submenu = tree.css_first("div.vertical_fullwidthmenu")
                         if submenu:
                             count_grid = 0
@@ -310,7 +296,6 @@ async def _fetch_mytek_categories() -> List[Dict]:
             await context.close()
             await browser.close()
 
-    # Dédoublonnage
     seen = set()
     unique = []
     for item in categories_raw:
@@ -323,16 +308,11 @@ async def _fetch_mytek_categories() -> List[Dict]:
 
 
 def _run_sync_urls_task(task_id: str) -> None:
-    """
-    Tâche en arrière-plan : scrape les menus des 3 sites et
-    stocke les CategoryUrl en base de données.
-    """
     db: Session = SessionLocal()
     try:
         crud.update_task_status(db, task_id, TaskStatus.RUNNING)
         logger.info(f"[service] Sync URLs démarré — tâche {task_id[:8]}")
 
-        # Lancer les 3 scrapers de menu en async
         async def _gather():
             results = await asyncio.gather(
                 _fetch_html_categories("Spacenet"),
@@ -350,7 +330,6 @@ def _run_sync_urls_task(task_id: str) -> None:
 
         all_categories = asyncio.run(_gather())
 
-        # Sauvegarder en DB
         result = crud.upsert_category_urls(db, all_categories)
 
         crud.update_task_status(
@@ -387,13 +366,6 @@ def _run_scrape_task(
     rayons:     Optional[List[str]],
     max_pages:  int,
 ) -> None:
-    """
-    Tâche en arrière-plan : lit les CategoryUrl depuis la DB,
-    scrape les produits page par page et les upsert.
-
-    site    : "mytek" | "spacenet" | "tunisianet" | "all"
-    rayons  : liste de rayons à filtrer, ou None (= tous)
-    """
     db: Session = SessionLocal()
     try:
         crud.update_task_status(db, task_id, TaskStatus.RUNNING)
@@ -403,11 +375,9 @@ def _run_scrape_task(
         total_inserted = 0
         total_updated  = 0
 
-        # Déterminer quels sites scraper
         if site == "all":
             boutiques = ["Spacenet", "Tunisianet", "Mytek"]
         else:
-            # Mapper nom technique → label DB
             label_map = {
                 "spacenet":   "Spacenet",
                 "tunisianet": "Tunisianet",
@@ -421,7 +391,6 @@ def _run_scrape_task(
                 logger.info(f"[service] Tâche {task_id[:8]} annulée avant {boutique_label}")
                 break
 
-            # Récupérer les URLs actives pour ce site
             site_key = boutique_label.lower()
             cat_urls = crud.get_category_urls(
                 db,
@@ -429,7 +398,6 @@ def _run_scrape_task(
                 active_only=True,
             )
 
-            # Filtrer par rayon si demandé
             if rayons:
                 cat_urls = [c for c in cat_urls if c.rayon in rayons]
 
@@ -449,7 +417,6 @@ def _run_scrape_task(
 
             scraper = ScraperClass()
 
-            # Convertir les ORM en dicts pour le scraper
             cat_dicts = [
                 {
                     "id":             c.id,
@@ -488,7 +455,6 @@ def _run_scrape_task(
                     f"{result['updated']} mis à jour"
                 )
 
-                # Marquer les catégories comme scrappées
                 scraped_cat_ids = {p["category_url_id"] for p in products if p.get("category_url_id")}
                 for cat_id in scraped_cat_ids:
                     crud.mark_category_scraped(db, cat_id)
@@ -496,7 +462,6 @@ def _run_scrape_task(
             if _is_cancelled(task_id):
                 break
 
-        # Statut final
         if _is_cancelled(task_id):
             crud.update_task_status(
                 db, task_id,
@@ -536,10 +501,6 @@ def _run_scrape_task(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def start_sync_urls_task(db: Session) -> str:
-    """
-    Lance la synchronisation des URLs de catégories en arrière-plan.
-    Retourne le task_id immédiatement.
-    """
     task_id = str(uuid.uuid4())
     _cancel_flags[task_id] = threading.Event()
     crud.create_task(db, task_id=task_id, site="sync-urls", categories=None)
@@ -554,11 +515,6 @@ def start_scrape_task(
     categories: Optional[List[str]],
     max_pages:  int,
 ) -> str:
-    """
-    Lance un scraping de produits en arrière-plan.
-    categories ici = liste de rayons (ex: ["Informatique", "Téléphonie"]).
-    Retourne le task_id immédiatement.
-    """
     task_id = str(uuid.uuid4())
     _cancel_flags[task_id] = threading.Event()
     crud.create_task(db, task_id=task_id, site=site, categories=categories)
@@ -568,10 +524,6 @@ def start_scrape_task(
 
 
 def cancel_scrape_task(task_id: str) -> bool:
-    """
-    Demande l'annulation d'une tâche.
-    Retourne True si la tâche existait, False sinon.
-    """
     flag = _cancel_flags.get(task_id)
     if flag is None:
         return False
@@ -581,9 +533,6 @@ def cancel_scrape_task(task_id: str) -> bool:
 
 
 def get_available_categories(site: str) -> Optional[List[str]]:
-    """
-    Retourne les rayons disponibles pour un site (depuis la DB).
-    """
     label_map = {
         "spacenet":   "Spacenet",
         "tunisianet": "Tunisianet",
