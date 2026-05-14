@@ -23,9 +23,11 @@ import asyncio
 import logging
 import threading
 import time
+import base64 # Ajouté pour la capture d'écran dans les logs
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Dict, Any
 from playwright.async_api import async_playwright
+from playwright_stealth import stealth_async # Ajouté pour contourner Cloudflare
 
 import httpx
 import selectolax.parser
@@ -167,7 +169,8 @@ async def _fetch_html_categories(boutique: str) -> List[Dict]:
 
 async def _fetch_mytek_categories() -> List[Dict]:
     """
-    Scrape le menu de Mytek en forçant l'affichage GLOBAL via CSS injection.
+    Scrape le menu de Mytek en forçant l'affichage GLOBAL via CSS injection
+    et en utilisant Stealth pour contourner les protections anti-bots.
     """
     categories_raw: List[Dict] = []
 
@@ -189,6 +192,9 @@ async def _fetch_mytek_categories() -> List[Dict]:
         try:
             page = await context.new_page()
             
+            # AJOUT IMPORTANT : Rendre Playwright indétectable (contourne Cloudflare)
+            await stealth_async(page)
+            
             # Bloquer images/polices pour accélérer le chargement sur Render
             await page.route(
                 "**/*.{png,jpg,jpeg,gif,svg,webp,woff,woff2,ttf,eot}",
@@ -197,7 +203,6 @@ async def _fetch_mytek_categories() -> List[Dict]:
 
             try:
                 logger.info("Navigation vers https://www.mytek.tn ...")
-                # CHANGEMENT 1 : networkidle attend que le JS finisse de charger
                 await page.goto("https://www.mytek.tn", wait_until="networkidle", timeout=45000)
 
                 # Gérer les cookies
@@ -227,14 +232,16 @@ async def _fetch_mytek_categories() -> List[Dict]:
                 
                 await asyncio.sleep(1)
 
-                # CHANGEMENT 2 : Attendre EXPLICITEMENT que le menu soit là
+                # Attendre EXPLICITEMENT que le menu soit là
                 try:
                     await page.wait_for_selector("ul.vertical-list > li.rootverticalnav", timeout=15000)
                     rayon_items = await page.locator("ul.vertical-list > li.rootverticalnav").all()
                 except Exception as e:
-                    # CHANGEMENT 3 : Capture d'écran si le menu n'est pas là (pour voir si c'est Cloudflare)
-                    logger.error(f"Le menu de Mytek n'a pas été trouvé à temps. Capture d'écran sauvegardée dans mytek_debug.png")
-                    await page.screenshot(path="mytek_debug.png", full_page=True)
+                    logger.error(f"Le menu de Mytek n'a pas été trouvé à temps.")
+                    # Capture d'écran en Base64 pour la lire directement dans les logs de Render
+                    screenshot_bytes = await page.screenshot()
+                    b64_image = base64.b64encode(screenshot_bytes).decode('utf-8')
+                    logger.error(f"VOIR CAPTURE (copier-coller cette ligne dans un navigateur) : data:image/png;base64,{b64_image}")
                     rayon_items = []
 
                 logger.info(f"{len(rayon_items)} rayons détectés.")
@@ -249,7 +256,6 @@ async def _fetch_mytek_categories() -> List[Dict]:
                         if not has_content:
                             try:
                                 await item.hover(timeout=2000)
-                                # CHANGEMENT 4 : Un peu plus de temps après le hover pour le chargement
                                 await asyncio.sleep(1.5) 
                                 rayon_html = await item.inner_html()
                                 tree = selectolax.parser.HTMLParser(rayon_html)
