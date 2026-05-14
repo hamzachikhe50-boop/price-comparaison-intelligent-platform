@@ -165,12 +165,6 @@ async def _fetch_html_categories(boutique: str) -> List[Dict]:
     return unique
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
 async def _fetch_mytek_categories() -> List[Dict]:
     """
     Scrape le menu de Mytek en forçant l'affichage GLOBAL via CSS injection.
@@ -179,8 +173,8 @@ async def _fetch_mytek_categories() -> List[Dict]:
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
-            headless=True, # Essayez False si cela échoue encore
-            args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-gpu"],
+            headless=True,
+            args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
         )
         
         context = await browser.new_context(
@@ -194,9 +188,17 @@ async def _fetch_mytek_categories() -> List[Dict]:
 
         try:
             page = await context.new_page()
+            
+            # Bloquer images/polices pour accélérer le chargement sur Render
+            await page.route(
+                "**/*.{png,jpg,jpeg,gif,svg,webp,woff,woff2,ttf,eot}",
+                lambda route: route.abort(),
+            )
+
             try:
                 logger.info("Navigation vers https://www.mytek.tn ...")
-                await page.goto("https://www.mytek.tn", wait_until="domcontentloaded", timeout=30000)
+                # CHANGEMENT 1 : networkidle attend que le JS finisse de charger
+                await page.goto("https://www.mytek.tn", wait_until="networkidle", timeout=45000)
 
                 # Gérer les cookies
                 try:
@@ -208,56 +210,47 @@ async def _fetch_mytek_categories() -> List[Dict]:
                     pass
 
                 # --- SOLUTION "NUCLÉAIRE" : Injection de style CSS global ---
-                # On force TOUT le menu à être visible, peu importe les media queries du site
                 logger.info("Injection CSS globale pour forcer la visibilité du menu...")
                 await page.evaluate("""
                     () => {
                         const style = document.createElement('style');
                         style.innerHTML = `
-                            /* Force l'affichage de la structure complète du menu */
-                            ul.vertical-list, 
-                            li.rootverticalnav, 
-                            div.vertical_fullwidthmenu, 
-                            div.root-col-1, 
-                            div.grid-item-6, 
-                            a.title-normale {
-                                display: block !important;
-                                visibility: visible !important;
-                                opacity: 1 !important;
-                                height: auto !important;
-                                width: auto !important;
-                                position: static !important;
-                                overflow: visible !important;
-                                top: auto !important;
-                                left: auto !important;
+                            ul.vertical-list, li.rootverticalnav, div.vertical_fullwidthmenu, div.root-col-1, div.grid-item-6, a.title-normale {
+                                display: block !important; visibility: visible !important; opacity: 1 !important;
+                                height: auto !important; width: auto !important; position: static !important;
+                                overflow: visible !important; top: auto !important; left: auto !important;
                             }
                         `;
                         document.head.appendChild(style);
                     }
                 """)
                 
-                # On attend un peu que le navigateur applique le style
                 await asyncio.sleep(1)
 
-                # Récupérer les éléments
-                rayon_items = await page.locator("ul.vertical-list > li.rootverticalnav").all()
+                # CHANGEMENT 2 : Attendre EXPLICITEMENT que le menu soit là
+                try:
+                    await page.wait_for_selector("ul.vertical-list > li.rootverticalnav", timeout=15000)
+                    rayon_items = await page.locator("ul.vertical-list > li.rootverticalnav").all()
+                except Exception as e:
+                    # CHANGEMENT 3 : Capture d'écran si le menu n'est pas là (pour voir si c'est Cloudflare)
+                    logger.error(f"Le menu de Mytek n'a pas été trouvé à temps. Capture d'écran sauvegardée dans mytek_debug.png")
+                    await page.screenshot(path="mytek_debug.png", full_page=True)
+                    rayon_items = []
+
                 logger.info(f"{len(rayon_items)} rayons détectés.")
 
                 for index, item in enumerate(rayon_items):
                     try:
-                        # 1. On tente d'abord de récupérer le HTML SANS hover (plus rapide)
-                        # Si le site a tout caché via CSS mais que le HTML est là, ça suffit.
                         rayon_html = await item.inner_html()
                         tree = selectolax.parser.HTMLParser(rayon_html)
                         
-                        # Vérification sommaire : est-ce qu'on voit déjà un grid-item ?
                         has_content = tree.css_first("div.grid-item-6") is not None
 
                         if not has_content:
-                            # 2. Si pas de contenu, on tente le Hover (maintenant ça devrait marcher car c'est visible)
                             try:
                                 await item.hover(timeout=2000)
-                                await asyncio.sleep(0.5) # Attendre le chargement JS/AJAX éventuel
+                                # CHANGEMENT 4 : Un peu plus de temps après le hover pour le chargement
+                                await asyncio.sleep(1.5) 
                                 rayon_html = await item.inner_html()
                                 tree = selectolax.parser.HTMLParser(rayon_html)
                             except Exception as hover_err:
@@ -321,6 +314,7 @@ async def _fetch_mytek_categories() -> List[Dict]:
 
     logger.info(f"[sync_urls] Mytek : {len(unique)} catégories uniques trouvées")
     return unique
+
 
 def _run_sync_urls_task(task_id: str) -> None:
     """
