@@ -1,0 +1,50 @@
+Créez un fichier README.md à la racine de votre projet et collez ceci :
+
+API Comparateur de Prix Tunisien
+API FastAPI asynchrone permettant de scraper et comparer les prix de produits informatiques et électroniques entre les principaux e-commerces tunisiens : Tunisianet, Spacenet et Mytek.
+
+🚀 Fonctionnalités
+Recherche multi-sources : Scraping simultané de Tunisianet, Spacenet et Mytek.
+Flux temps réel (SSE) : Les résultats s'affichent au fur et à mesure via Server-Sent Events.
+Comparaison intelligente : Match des produits identiques entre les sites avec fallback sur les détails (référence, description).
+Cache en mémoire : Système de cache avec expiration automatique (TTL 300s) pour accélérer les requêtes récurrentes.
+Proxy d'images : Contourne les erreurs CORS pour l'affichage des images sur le frontend.
+🛡️ Problème spécifique : Erreur 403 sur Mytek
+Le Problème
+Lors du déploiement sur des plateformes cloud comme Render, le scraping de Mytek échoue avec une erreur HTTP 403 Forbidden.
+
+Cela est dû à deux raisons :
+
+Protection Anti-Bot (Cloudflare) : Mytek utilise un pare-feu qui exige l'exécution d'un défi JavaScript pour prouver que la requête provient d'un vrai navigateur.
+IP de Datacenter : Les adresses IP des serveurs Render (AWS, etc.) sont immédiatement identifiées comme des serveurs et non comme des utilisateurs classiques.
+La Solution adoptée : Rotation de Proxys Gratuits
+Pour contourner ce blocage sans avoir à utiliser un navigateur lourd (type Puppeteer/Playwright) qui consomme trop de RAM sur Render, l'API utilise une rotation de proxys gratuits via curl_cffi.
+
+Comment ça marche ?
+
+Au début d'une recherche Mytek, l'API interroge ProxyScrape pour obtenir une liste de proxys ouverts.
+Elle effectue un "Warm-up" (visite la page d'accueil) en testant jusqu'à 5 proxys différents.
+Dès qu'un proxy passe l'étape du Warm-up sans 403, il est conservé pour effectuer la recherche et la pagination.
+Si aucun proxy ne fonctionne, le scraper Mytek s'arrête gracieusement sans bloquer les résultats de Tunisianet et Spacenet.
+⚠️ Avertissement sur les proxys gratuits
+Les proxys gratuits sont instables, lents, et ont un taux de succès faible contre Cloudflare. Si Mytek renvoie fréquemment 0 résultat, c'est que les proxys ont été bloqués. Pour une fiabilité à 100%, il faudra envisager :
+
+L'utilisation de Proxys Résidentiels Payants (BrightData, Oxylabs).
+L'intégration de Playwright avec l'option --disable-dev-shm-usage sur Render.
+🛠️ Installation et Déploiement
+Prérequis
+Python 3.9+
+Dépendances : fastapi, uvicorn, httpx, curl_cffi, selectolax
+Installation locale
+pip install -r requirements.txtuvicorn main:app --host 0.0.0.0 --port 9000
+Déploiement sur Render
+Connectez votre dépôt GitHub à Render.
+Créez un Web Service.
+Build Command : pip install -r requirements.txt
+Start Command : uvicorn main:app --host 0.0.0.0 --port $PORT
+L'API détectera automatiquement le port alloué par Render.
+📡 Endpoints API
+GET /api/search/stream?q={query} : Recherche classique avec flux SSE.
+GET /api/compare/stream?q={query} : Comparaison de produits spécifiques avec flux SSE.
+GET /api/proxy-image?img_url={url} : Proxy pour contourner les CORS d'images.
+GET /health : Vérification de l'état de l'API.

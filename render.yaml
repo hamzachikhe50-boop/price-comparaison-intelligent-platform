@@ -1,0 +1,91 @@
+services:
+  # ─────────────────────────────────────────
+  #  APP PRINCIPALE — Auth / Users / Admin
+  # ─────────────────────────────────────────
+  - type: web
+    name: app-auth
+    runtime: python
+    rootDir: app  # L'auth est à la racine
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false 
+      - key: SECRET_KEY
+        sync: false
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "30"
+      - key: FRONTEND_URLS
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+
+  # ─────────────────────────────────────────
+  #  SERVICE 1 — Scraping planifié
+  # ─────────────────────────────────────────
+  - type: web
+    name: service1-scraping
+    runtime: python
+    rootDir: microservices/service1-scraping # 👉 CHANGEMENT ICI
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL_SCRAPER
+        sync: false 
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+
+  # ─────────────────────────────────────────
+  #  SERVICE 2 — Historique des prix
+  # ─────────────────────────────────────────
+  - type: web
+    name: service2-history
+    runtime: python
+    rootDir: microservices/service2-price # 👉 CHANGEMENT ICI
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL_SCRAPER
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+
+  # ─────────────────────────────────────────
+  #  SERVICE 3 — Alertes email
+  # ─────────────────────────────────────────
+  - type: web
+    name: service3-alerts
+    runtime: python
+    rootDir: microservices/service3-alerts  # 👉 CHANGEMENT ICI
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL_SCRAPER
+        sync: false
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: ALERT_CHECK_HOUR
+        value: "3"
+      - key: ALERT_CHECK_MINUTE
+        value: "30"
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+
+  # ─────────────────────────────────────────
+  #  SERVICE TEMPS RÉEL — Scraping SSE
+  # ─────────────────────────────────────────
+  - type: web
+    name: realtime-sse
+    runtime: python
+    rootDir: Scraping_temps_reel
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PYTHON_VERSION
+        value: "3.11.0"

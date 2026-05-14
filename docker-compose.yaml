@@ -1,0 +1,130 @@
+version: "3.9"
+
+# ══════════════════════════════════════════════════════════════
+#  docker-compose.yml — Backend complet
+#
+#  Services :
+#    postgres   → base de données partagée        (interne)
+#    app        → auth / users / admin            port 8000
+#    service1   → scraping planifié               port 8001
+#    service2   → historique des prix             port 8002
+#    service3   → alertes email                   port 8003
+#    realtime   → scraping temps réel (SSE)       port 9000
+#
+#  Utilisation :
+#    cp .env.example .env   # remplir les vraies valeurs
+#    docker compose up --build -d
+# ══════════════════════════════════════════════════════════════
+
+services:
+
+  # ─────────────────────────────────────────
+  #  BASE DE DONNÉES
+  # ─────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_MULTIPLE_DATABASES: auth_db,scraper_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/create_databases.sh:/docker-entrypoint-initdb.d/create_databases.sh
+    ports:
+      - "5432:5432"        # optionnel : retirer en production
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  #  APP PRINCIPALE — Auth / Users / Admin
+  # ─────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@postgres/auth_db
+      SECRET_KEY: ${SECRET_KEY}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      FRONTEND_URLS: ${FRONTEND_URLS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────
+  #  SERVICE 1 — Scraping planifié
+  # ─────────────────────────────────────────
+  service1:
+    build:
+      context: .
+      dockerfile: Dockerfile.service1
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@postgres/scraper_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────
+  #  SERVICE 2 — Historique des prix
+  # ─────────────────────────────────────────
+  service2:
+    build:
+      context: .
+      dockerfile: Dockerfile.service2
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@postgres/scraper_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────
+  #  SERVICE 3 — Alertes email
+  # ─────────────────────────────────────────
+  service3:
+    build:
+      context: .
+      dockerfile: Dockerfile.service3
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@postgres/scraper_db
+      GMAIL_USER: ${GMAIL_USER}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      ALERT_CHECK_HOUR: ${ALERT_CHECK_HOUR:-3}
+      ALERT_CHECK_MINUTE: ${ALERT_CHECK_MINUTE:-30}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────
+  #  SERVICE TEMPS RÉEL — Scraping SSE
+  #  (curl_cffi — pas de Playwright/Chromium)
+  # ─────────────────────────────────────────
+  realtime:
+    build:
+      context: .
+      dockerfile: Dockerfile.realtime
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      PYTHONUNBUFFERED: "1"
+    # Pas de depends_on postgres : ce service n'utilise pas de DB
+
+volumes:
+  postgres_data:

@@ -1,0 +1,512 @@
+INFO:     Started server process [6620]
+INFO:     Waiting for application startup.
+2026-04-27 11:24:42  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-04-27 11:24:42  INFO      app.database  [DB] Connexion OK — 57667 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+INFO:     127.0.0.1:63351 - "GET /products/search?q=iPhone%2017%20Pro%20Max%20256Go&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63351 - "GET /products/search?q=iPhone%2017%20Pro%20Max%20256Go&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63351 - "GET /products/search?q=iPhone%2017%20Pro%20Max%20256Go&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63351 - "GET /products/search?q=iPhone%2017%20Pro%20Max%20256Go&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50141 - "GET /products/search?q=Coque%20antichoc%201%2C5%20mm%20pour&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50141 - "GET /products/search?q=Coque%20antichoc%201%2C5%20mm%20pour&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64594 - "GET /products/524/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61508 - "GET /products/search?q=Film%20de%20Protection%20Ecran%20HD&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61508 - "GET /products/search?q=Film%20de%20Protection%20Ecran%20HD&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:65105 - "GET /products/524/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52104 - "GET /products/search?q=Aspirateur%20eau%2Fpoussi%C3%A8res%20WD%202%20Plus&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52104 - "GET /products/search?q=Aspirateur%20eau%2Fpoussi%C3%A8res%20WD%202%20Plus&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50940 - "GET /products/search?q=Aspirateur%20eau%2Fpoussi%C3%A8res%20WD%202%20Plus&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50794 - "GET /products/search?q=iPhone%2017%20Pro%20Max%20256Go&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50794 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53394 - "GET /products/search?q=Apple%20iPhone%20Air%20256%20Go&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53394 - "GET /products/search?q=Apple%20iPhone%20Air%20256%20Go&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:60858 - "GET /products/7196/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55087 - "GET /products/search?q=Apple%20iPhone%20Air%20256%20Go&limit=20 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55087 - "GET /products/7196/price-history HTTP/1.1" 200 OK
+2026-04-27 12:07:17  INFO      app.main  [prediction] product_id=7197 days=15 \u2192 6299.0
+INFO:     127.0.0.1:58814 - "GET /products/7197/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58814 - "GET /products/7196/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51969 - "GET /products/7196/price-history HTTP/1.1" 200 OK
+2026-04-27 12:08:26  INFO      app.main  [prediction] product_id=5456 days=15 \u2192 4899.0
+INFO:     127.0.0.1:62932 - "GET /products/5456/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62932 - "GET /products/5457/price-history HTTP/1.1" 200 OK
+2026-04-27 12:08:57  INFO      app.main  [prediction] product_id=24993 days=15 \u2192 3.0
+INFO:     127.0.0.1:54303 - "GET /products/24993/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55181 - "GET /products/5457/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55181 - "GET /products/24993/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64958 - "GET /products/5457/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49350 - "GET /products/5457/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49350 - "GET /products/24993/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51679 - "GET /products/5457/price-history HTTP/1.1" 200 OK
+INFO:     Shutting down
+^CINFO:     Started server process [20408]
+INFO:     Waiting for application startup.
+2026-04-27 12:16:03  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-04-27 12:16:03  INFO      app.database  [DB] Connexion OK — 57667 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+2026-04-27 12:16:55  INFO      app.main  [prediction] product_id=5456 days=15 \u2192 4899.0
+INFO:     127.0.0.1:52740 - "GET /products/5456/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52740 - "GET /products/5457/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51099 - "GET /products/5457/price-history HTTP/1.1" 200 OK
+2026-04-27 12:24:28  INFO      app.main  [prediction] product_id=24993 days=15 \u2192 3.0
+INFO:     127.0.0.1:65223 - "GET /products/24993/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65223 - "GET /products/24993/price-history HTTP/1.1" 200 OK
+2026-04-27 12:24:54  INFO      app.main  [prediction] product_id=24993 days=15 \u2192 3.0
+INFO:     127.0.0.1:64570 - "GET /products/24993/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64570 - "GET /products/24993/price-history HTTP/1.1" 200 OK
+INFO:     Started server process [22308]
+INFO:     Waiting for application startup.
+2026-04-27 12:28:04  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-04-27 12:28:05  INFO      app.database  [DB] Connexion OK — 57667 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+2026-04-27 12:32:12  INFO      app.main  [prediction] product_id=4306 days=15 \u2192 749.0
+INFO:     127.0.0.1:52431 - "GET /products/4306/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52431 - "GET /products/4306/price-history HTTP/1.1" 200 OK
+2026-04-27 12:37:11  INFO      app.main  [prediction] product_id=4306 days=15 \u2192 749.0
+INFO:     127.0.0.1:60419 - "GET /products/4306/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60419 - "GET /products/4306/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54771 - "GET /products/4306/price-history HTTP/1.1" 200 OK
+2026-04-27 12:38:40  INFO      app.main  [prediction] product_id=4306 days=15 \u2192 749.0
+INFO:     127.0.0.1:49453 - "GET /products/4306/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49453 - "GET /products/4306/price-history HTTP/1.1" 200 OK
+2026-04-27 12:43:02  INFO      app.main  [prediction] product_id=4306 days=15 \u2192 749.0
+INFO:     127.0.0.1:61116 - "GET /products/4306/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61116 - "GET /products/4306/price-history HTTP/1.1" 200 OK
+2026-04-27 12:59:47  INFO      app.main  [prediction] product_id=5456 days=15 \u2192 4899.0
+INFO:     127.0.0.1:50813 - "GET /products/5456/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50813 - "GET /products/5324/price-history HTTP/1.1" 200 OK
+2026-04-27 14:11:43  INFO      app.main  [prediction] product_id=25303 days=15 \u2192 3.0
+INFO:     127.0.0.1:50776 - "GET /products/25303/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50776 - "GET /products/25110/price-history HTTP/1.1" 200 OK
+2026-04-27 14:13:58  INFO      app.main  [prediction] product_id=24993 days=15 \u2192 3.0
+INFO:     127.0.0.1:64933 - "GET /products/24993/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64933 - "GET /products/24993/price-history HTTP/1.1" 200 OK
+2026-04-27 14:15:57  INFO      app.main  [prediction] product_id=7197 days=15 \u2192 6299.0
+INFO:     127.0.0.1:60427 - "GET /products/7197/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60427 - "GET /products/7196/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50838 - "GET /products/7196/price-history HTTP/1.1" 200 OK
+2026-04-27 14:18:12  INFO      app.main  [prediction] product_id=7197 days=15 \u2192 6299.0
+INFO:     127.0.0.1:55700 - "GET /products/7197/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55700 - "GET /products/7196/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55700 - "GET /products/7196/price-history HTTP/1.1" 200 OK
+2026-04-27 14:23:23  INFO      app.main  [prediction] product_id=4858 days=15 \u2192 2175.0
+INFO:     127.0.0.1:61674 - "GET /products/4858/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61674 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62449 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58442 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+2026-04-27 14:31:39  INFO      app.main  [prediction] product_id=4858 days=15 \u2192 2175.0
+INFO:     127.0.0.1:50617 - "GET /products/4858/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50617 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+INFO:     Started server process [30368]
+INFO:     Waiting for application startup.
+2026-04-27 14:36:14  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-04-27 14:36:14  INFO      app.database  [DB] Connexion OK — 57769 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+2026-04-27 14:36:14  INFO      app.main  [prediction] product_id=4858 days=15 \u2192 2175.0
+INFO:     127.0.0.1:59295 - "GET /products/4858/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59295 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57845 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+INFO:     Started server process [29860]
+INFO:     Waiting for application startup.
+2026-04-27 14:41:24  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-04-27 14:41:24  INFO      app.database  [DB] Connexion OK — 57769 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+2026-04-27 14:42:22  INFO      app.main  [prediction] product_id=4858 days=15 \u2192 2175.0
+INFO:     127.0.0.1:54275 - "GET /products/4858/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54275 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59916 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63016 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+2026-04-27 14:44:56  INFO      app.main  [prediction] product_id=4858 days=15 \u2192 2175.0
+INFO:     127.0.0.1:61336 - "GET /products/4858/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61336 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+INFO:     Started server process [28104]
+INFO:     Waiting for application startup.
+2026-04-27 14:49:25  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-04-27 14:49:25  INFO      app.database  [DB] Connexion OK — 57769 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+2026-04-27 14:49:55  INFO      app.main  [prediction] product_id=4858 days=15 \u2192 2175.0
+INFO:     127.0.0.1:60419 - "GET /products/4858/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60419 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60782 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50992 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54380 - "GET /products/4858/price-history HTTP/1.1" 200 OK
+INFO:     Started server process [9140]
+INFO:     Waiting for application startup.
+2026-04-27 16:38:54  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-04-27 16:38:54  INFO      app.database  [DB] Connexion OK — 57782 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+2026-04-27 16:40:50  INFO      app.main  [prediction] product_id=57087 days=15 \u2192 1049.0
+INFO:     127.0.0.1:61677 - "GET /products/57087/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61677 - "GET /products/57087/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61677 - "GET /products/57087/price-history HTTP/1.1" 200 OK
+2026-04-27 16:44:23  INFO      app.main  [prediction] product_id=56274 days=15 \u2192 3499.0
+INFO:     127.0.0.1:49992 - "GET /products/56274/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49992 - "GET /products/7162/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55579 - "GET /products/7162/price-history HTTP/1.1" 200 OK
+2026-04-27 18:42:46  INFO      app.main  [prediction] product_id=40025 days=15 \u2192 2499.0
+INFO:     127.0.0.1:59493 - "GET /products/40025/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49334 - "GET /products/40025/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49334 - "GET /products/40025/price-history HTTP/1.1" 200 OK
+INFO:     Started server process [10456]
+INFO:     Waiting for application startup.
+2026-04-29 11:14:32  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-04-29 11:14:32  INFO      app.database  [DB] Connexion OK — 58014 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+2026-04-29 11:16:40  INFO      app.main  [prediction] product_id=7197 days=15 \u2192 6299.0
+INFO:     127.0.0.1:59225 - "GET /products/7197/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59225 - "GET /products/7196/price-history HTTP/1.1" 200 OK
+2026-04-29 11:23:47  INFO      app.main  [prediction] product_id=4979 days=15 \u2192 2559.0
+INFO:     127.0.0.1:63412 - "GET /products/4979/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63412 - "GET /products/4979/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63412 - "GET /products/4979/price-history HTTP/1.1" 200 OK
+2026-04-29 11:24:29  INFO      app.main  [prediction] product_id=30520 days=15 \u2192 2.0
+INFO:     127.0.0.1:58334 - "GET /products/30520/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58334 - "GET /products/30520/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54533 - "GET /products/30520/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54533 - "GET /products/46384/price-history HTTP/1.1" 200 OK
+2026-04-29 11:25:26  INFO      app.main  [prediction] product_id=46384 days=15 \u2192 6559.281
+INFO:     127.0.0.1:53637 - "GET /products/46384/prediction?days=15 HTTP/1.1" 200 OK
+2026-04-29 11:26:08  INFO      app.main  [prediction] product_id=7810 days=15 \u2192 2959.0
+INFO:     127.0.0.1:53221 - "GET /products/7810/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53221 - "GET /products/7809/price-history HTTP/1.1" 200 OK
+2026-04-29 11:37:11  INFO      app.main  [prediction] product_id=52260 days=15 \u2192 1699.0
+INFO:     127.0.0.1:64666 - "GET /products/52260/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64666 - "GET /products/52282/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64666 - "GET /products/52282/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64666 - "GET /products/17257/price-history HTTP/1.1" 200 OK
+2026-04-29 11:44:54  INFO      app.main  [prediction] product_id=47100 days=15 \u2192 13572.257
+INFO:     127.0.0.1:64343 - "GET /products/47100/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64343 - "GET /products/47101/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63995 - "GET /products/47101/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64248 - "GET /products/47101/price-history HTTP/1.1" 200 OK
+2026-04-29 11:55:18  INFO      app.main  [prediction] product_id=56274 days=15 \u2192 3499.0
+INFO:     127.0.0.1:56650 - "GET /products/56274/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56650 - "GET /products/56274/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49883 - "GET /products/56274/price-history HTTP/1.1" 200 OK
+2026-04-29 11:55:55  INFO      app.main  [prediction] product_id=30520 days=15 \u2192 2.0
+INFO:     127.0.0.1:57234 - "GET /products/30520/prediction?days=15 HTTP/1.1" 200 OK
+2026-04-29 11:55:56  INFO      app.main  [prediction] product_id=30520 days=15 \u2192 2.0
+INFO:     127.0.0.1:57234 - "GET /products/30520/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51663 - "GET /products/30520/price-history HTTP/1.1" 200 OK
+2026-04-29 12:28:18  INFO      app.main  [prediction] product_id=55713 days=15 \u2192 4779.0
+INFO:     127.0.0.1:51039 - "GET /products/55713/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51039 - "GET /products/55720/price-history HTTP/1.1" 200 OK
+2026-04-29 12:38:31  INFO      app.main  [prediction] product_id=55713 days=15 \u2192 4779.0
+INFO:     127.0.0.1:55075 - "GET /products/55713/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55075 - "GET /products/55720/price-history HTTP/1.1" 200 OK
+2026-04-29 12:44:42  INFO      app.main  [prediction] product_id=7197 days=15 \u2192 6299.0
+INFO:     127.0.0.1:52421 - "GET /products/7197/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52421 - "GET /products/7196/price-history HTTP/1.1" 200 OK
+INFO:     Started server process [7184]
+INFO:     Waiting for application startup.
+2026-04-30 11:41:32  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-04-30 11:41:33  INFO      app.database  [DB] Connexion OK — 58341 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+^CINFO:     Started server process [14244]
+INFO:     Waiting for application startup.
+2026-04-30 14:58:56  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-04-30 14:59:00  INFO      app.database  [DB] Connexion OK — 58491 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+2026-04-30 14:59:12  INFO      app.main  [prediction] product_id=7746 days=15 \u2192 59.0
+INFO:     127.0.0.1:59598 - "GET /products/7746/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59598 - "GET /products/7746/price-history HTTP/1.1" 200 OK
+2026-04-30 15:00:00  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:49650 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49650 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58016 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58016 - "GET /products/18433/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58016 - "GET /products/37164/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58016 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+2026-04-30 16:03:09  INFO      app.main  [prediction] product_id=7197 days=15 \u2192 6299.0
+INFO:     127.0.0.1:53063 - "GET /products/7197/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53063 - "GET /products/7196/price-history HTTP/1.1" 200 OK
+2026-04-30 16:03:43  INFO      app.main  [prediction] product_id=18433 days=15 \u2192 139.0
+INFO:     127.0.0.1:64017 - "GET /products/18433/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64017 - "GET /products/18433/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55829 - "GET /products/18433/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55829 - "GET /products/37164/price-history HTTP/1.1" 200 OK
+2026-04-30 16:04:59  INFO      app.main  [prediction] product_id=18433 days=15 \u2192 139.0
+INFO:     127.0.0.1:65136 - "GET /products/18433/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65136 - "GET /products/18433/price-history HTTP/1.1" 200 OK
+2026-04-30 16:05:19  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:63411 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63411 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+2026-04-30 16:06:02  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:52646 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52646 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56580 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56580 - "GET /products/37164/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56580 - "GET /products/18433/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56580 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56580 - "GET /products/37164/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56580 - "GET /products/18433/price-history HTTP/1.1" 200 OK
+2026-04-30 16:06:46  INFO      app.main  [prediction] product_id=37164 days=15 \u2192 269.0
+INFO:     127.0.0.1:57616 - "GET /products/37164/prediction?days=15 HTTP/1.1" 200 OK
+2026-04-30 16:06:48  INFO      app.main  [prediction] product_id=18433 days=15 \u2192 139.0
+INFO:     127.0.0.1:57616 - "GET /products/18433/prediction?days=15 HTTP/1.1" 200 OK
+2026-04-30 16:19:46  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:52358 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52358 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+2026-04-30 16:20:12  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:64174 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64174 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+2026-04-30 16:28:18  INFO      app.main  [prediction] product_id=30555 days=15 \u2192 4.0
+INFO:     127.0.0.1:61165 - "GET /products/30555/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61165 - "GET /products/30555/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61165 - "GET /products/30555/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64337 - "GET /products/30555/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64337 - "GET /products/46386/price-history HTTP/1.1" 200 OK
+2026-04-30 16:32:32  INFO      app.main  [prediction] product_id=46386 days=15 \u2192 6310.52
+INFO:     127.0.0.1:49271 - "GET /products/46386/prediction?days=15 HTTP/1.1" 200 OK
+2026-04-30 16:32:46  INFO      app.main  [prediction] product_id=30555 days=15 \u2192 4.0
+INFO:     127.0.0.1:51637 - "GET /products/30555/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53261 - "GET /products/30555/price-history HTTP/1.1" 200 OK
+2026-04-30 16:33:56  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:61961 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61961 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+2026-04-30 16:34:18  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:63635 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63635 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64294 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64294 - "GET /products/37164/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64294 - "GET /products/18433/price-history HTTP/1.1" 200 OK
+2026-04-30 16:41:13  INFO      app.main  [prediction] product_id=7786 days=15 \u2192 149.0
+INFO:     127.0.0.1:59581 - "GET /products/7786/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59581 - "GET /products/7786/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64379 - "GET /products/7786/price-history HTTP/1.1" 200 OK
+2026-04-30 16:41:34  INFO      app.main  [prediction] product_id=7786 days=15 \u2192 149.0
+INFO:     127.0.0.1:54198 - "GET /products/7786/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54198 - "GET /products/7786/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59612 - "GET /products/7786/price-history HTTP/1.1" 200 OK
+2026-04-30 16:43:45  INFO      app.main  [prediction] product_id=7786 days=15 \u2192 149.0
+INFO:     127.0.0.1:59612 - "GET /products/7786/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59612 - "GET /products/7786/price-history HTTP/1.1" 200 OK
+2026-04-30 16:49:42  INFO      app.main  [prediction] product_id=7786 days=15 \u2192 149.0
+INFO:     127.0.0.1:55459 - "GET /products/7786/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55459 - "GET /products/7786/price-history HTTP/1.1" 200 OK
+2026-04-30 16:50:31  INFO      app.main  [prediction] product_id=30555 days=15 \u2192 4.0
+INFO:     127.0.0.1:57957 - "GET /products/30555/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57957 - "GET /products/30555/price-history HTTP/1.1" 200 OK
+INFO:     Started server process [5768]
+INFO:     Waiting for application startup.
+2026-05-04 13:29:43  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-05-04 13:29:43  INFO      app.database  [DB] Connexion OK — 58491 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+2026-05-04 14:28:23  INFO      app.main  [prediction] product_id=7806 days=15 \u2192 715.0
+INFO:     127.0.0.1:65272 - "GET /products/7806/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51727 - "GET /products/7806/price-history HTTP/1.1" 200 OK
+2026-05-04 18:49:51  INFO      app.main  [prediction] product_id=30520 days=15 \u2192 2.0
+INFO:     127.0.0.1:50260 - "GET /products/30520/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50260 - "GET /products/30520/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56314 - "GET /products/30520/price-history HTTP/1.1" 200 OK
+INFO:     Started server process [13788]
+INFO:     Waiting for application startup.
+2026-05-07 14:05:47  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-05-07 14:05:48  INFO      app.database  [DB] Connexion OK — 58892 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+2026-05-07 14:08:32  INFO      app.main  [prediction] product_id=13793 days=15 \u2192 2.0
+INFO:     127.0.0.1:64483 - "GET /products/13793/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64483 - "GET /products/19679/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63101 - "GET /products/19679/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63101 - "GET /products/37222/price-history HTTP/1.1" 200 OK
+2026-05-07 14:31:23  INFO      app.main  [prediction] product_id=7746 days=15 \u2192 59.0
+INFO:     127.0.0.1:57085 - "GET /products/7746/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57085 - "GET /products/7746/price-history HTTP/1.1" 200 OK
+2026-05-07 14:58:06  INFO      app.main  [prediction] product_id=56273 days=15 \u2192 2799.0
+INFO:     127.0.0.1:64983 - "GET /products/56273/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64983 - "GET /products/56273/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61526 - "GET /products/56273/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52186 - "GET /products/56273/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64503 - "GET /products/56273/price-history HTTP/1.1" 200 OK
+2026-05-07 15:18:54  INFO      app.main  [prediction] product_id=30322 days=15 \u2192 499.0
+INFO:     127.0.0.1:51948 - "GET /products/30322/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51948 - "GET /products/30312/price-history HTTP/1.1" 200 OK
+2026-05-07 16:06:55  INFO      app.main  [prediction] product_id=19462 days=15 \u2192 689.0
+INFO:     127.0.0.1:64472 - "GET /products/19462/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64472 - "GET /products/19483/price-history HTTP/1.1" 200 OK
+2026-05-07 16:07:21  INFO      app.main  [prediction] product_id=19970 days=15 \u2192 5.0
+INFO:     127.0.0.1:49335 - "GET /products/19970/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49335 - "GET /products/20210/price-history HTTP/1.1" 200 OK
+INFO:     Started server process [16160]
+INFO:     Waiting for application startup.
+2026-05-08 14:05:02  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-05-08 14:05:02  INFO      app.database  [DB] Connexion OK — 59623 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+2026-05-08 14:12:21  INFO      app.main  [prediction] product_id=24607 days=15 \u2192 2.0
+INFO:     127.0.0.1:60815 - "GET /products/24607/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60815 - "GET /products/24532/price-history HTTP/1.1" 200 OK
+2026-05-08 14:13:07  INFO      app.main  [prediction] product_id=30555 days=15 \u2192 4.0
+INFO:     127.0.0.1:61715 - "GET /products/30555/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61715 - "GET /products/30555/price-history HTTP/1.1" 200 OK
+2026-05-08 14:14:28  INFO      app.main  [prediction] product_id=18433 days=15 \u2192 139.0
+INFO:     127.0.0.1:54607 - "GET /products/18433/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54607 - "GET /products/18432/price-history HTTP/1.1" 200 OK
+2026-05-08 14:14:57  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:56594 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56594 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58974 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+2026-05-08 14:16:47  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:58974 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58974 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50260 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63014 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+2026-05-08 14:21:14  INFO      app.main  [prediction] product_id=7203 days=15 \u2192 6899.0
+INFO:     127.0.0.1:61267 - "GET /products/7203/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61267 - "GET /products/7203/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49255 - "GET /products/7203/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49255 - "GET /products/30600/price-history HTTP/1.1" 200 OK
+2026-05-08 14:23:42  INFO      app.main  [prediction] product_id=4979 days=15 \u2192 2559.0
+INFO:     127.0.0.1:51326 - "GET /products/4979/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51326 - "GET /products/4979/price-history HTTP/1.1" 200 OK
+2026-05-08 14:24:06  INFO      app.main  [prediction] product_id=5456 days=15 \u2192 4899.0
+INFO:     127.0.0.1:52862 - "GET /products/5456/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52862 - "GET /products/5457/price-history HTTP/1.1" 200 OK
+2026-05-08 14:24:28  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:52889 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52889 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+2026-05-08 14:25:40  INFO      app.main  [prediction] product_id=5456 days=15 \u2192 4899.0
+INFO:     127.0.0.1:49228 - "GET /products/5456/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49228 - "GET /products/5457/price-history HTTP/1.1" 200 OK
+2026-05-08 14:25:56  INFO      app.main  [prediction] product_id=5456 days=15 \u2192 4899.0
+INFO:     127.0.0.1:62872 - "GET /products/5456/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62872 - "GET /products/5325/price-history HTTP/1.1" 200 OK
+2026-05-08 14:31:34  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:49968 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49968 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+2026-05-08 14:32:13  INFO      app.main  [prediction] product_id=46431 days=15 \u2192 11385.532
+INFO:     127.0.0.1:61842 - "GET /products/46431/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61842 - "GET /products/46431/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61842 - "GET /products/46431/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61842 - "GET /products/30598/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61842 - "GET /products/46431/price-history HTTP/1.1" 200 OK
+2026-05-08 14:34:31  INFO      app.main  [prediction] product_id=57940 days=15 \u2192 879.0
+INFO:     127.0.0.1:58027 - "GET /products/57940/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58027 - "GET /products/57940/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58027 - "GET /products/57940/price-history HTTP/1.1" 200 OK
+2026-05-08 14:42:39  INFO      app.main  [prediction] product_id=40405 days=15 \u2192 1419.0
+INFO:     127.0.0.1:61236 - "GET /products/40405/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61236 - "GET /products/40405/price-history HTTP/1.1" 200 OK
+2026-05-08 14:53:38  INFO      app.main  [prediction] product_id=40405 days=15 \u2192 1419.0
+INFO:     127.0.0.1:64064 - "GET /products/40405/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64064 - "GET /products/40405/price-history HTTP/1.1" 200 OK
+2026-05-08 14:58:55  INFO      app.main  [prediction] product_id=47083 days=15 \u2192 3577.379
+INFO:     127.0.0.1:56970 - "GET /products/47083/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56970 - "GET /products/47083/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56970 - "GET /products/47083/price-history HTTP/1.1" 200 OK
+2026-05-08 14:59:18  INFO      app.main  [prediction] product_id=47083 days=15 \u2192 3577.379
+INFO:     127.0.0.1:55572 - "GET /products/47083/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55572 - "GET /products/47083/price-history HTTP/1.1" 200 OK
+2026-05-08 15:18:08  INFO      app.main  [prediction] product_id=47094 days=15 \u2192 7097.091
+INFO:     127.0.0.1:60801 - "GET /products/47094/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60801 - "GET /products/47092/price-history HTTP/1.1" 200 OK
+2026-05-08 15:38:32  INFO      app.main  [prediction] product_id=41835 days=15 \u2192 39.9
+INFO:     127.0.0.1:63308 - "GET /products/41835/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63308 - "GET /products/41835/price-history HTTP/1.1" 200 OK
+INFO:     Started server process [29176]
+INFO:     Waiting for application startup.
+2026-05-09 21:42:55  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-05-09 21:42:55  INFO      app.database  [DB] Connexion OK — 59878 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+INFO:     Started server process [18420]
+INFO:     Waiting for application startup.
+2026-05-12 10:13:12  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-05-12 10:13:12  INFO      app.database  [DB] Connexion OK — 59878 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+2026-05-12 10:18:15  INFO      app.main  [prediction] product_id=46398 days=15 \u2192 6645.306
+INFO:     127.0.0.1:52598 - "GET /products/46398/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52598 - "GET /products/46398/price-history HTTP/1.1" 200 OK
+2026-05-12 10:35:46  INFO      app.main  [prediction] product_id=46398 days=15 \u2192 6645.306
+INFO:     127.0.0.1:55634 - "GET /products/46398/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55634 - "GET /products/46398/price-history HTTP/1.1" 200 OK
+2026-05-12 10:50:43  INFO      app.main  [prediction] product_id=7804 days=15 \u2192 359.0
+INFO:     127.0.0.1:53826 - "GET /products/7804/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53826 - "GET /products/7803/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53826 - "GET /products/7803/price-history HTTP/1.1" 200 OK
+2026-05-12 10:51:19  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:57912 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57912 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+2026-05-12 11:44:12  INFO      app.main  [prediction] product_id=46385 days=15 \u2192 4014.485
+INFO:     127.0.0.1:59249 - "GET /products/46385/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59249 - "GET /products/46385/price-history HTTP/1.1" 200 OK
+2026-05-12 11:45:44  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:51395 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51395 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54769 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54769 - "GET /products/47618/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54769 - "GET /products/18433/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54769 - "GET /products/18433/price-history HTTP/1.1" 200 OK
+2026-05-12 11:55:24  INFO      app.main  [prediction] product_id=46399 days=15 \u2192 6645.306
+INFO:     127.0.0.1:57139 - "GET /products/46399/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57139 - "GET /products/46399/price-history HTTP/1.1" 200 OK
+2026-05-12 12:08:40  INFO      app.main  [prediction] product_id=46399 days=15 \u2192 6645.306
+INFO:     127.0.0.1:63942 - "GET /products/46399/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63942 - "GET /products/46399/price-history HTTP/1.1" 200 OK
+2026-05-12 12:23:21  INFO      app.main  [prediction] product_id=46399 days=15 \u2192 6645.306
+INFO:     127.0.0.1:59417 - "GET /products/46399/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59417 - "GET /products/46399/price-history HTTP/1.1" 200 OK
+2026-05-12 12:24:53  INFO      app.main  [prediction] product_id=46399 days=15 \u2192 6645.306
+INFO:     127.0.0.1:53762 - "GET /products/46399/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53762 - "GET /products/46399/price-history HTTP/1.1" 200 OK
+2026-05-12 12:27:10  INFO      app.main  [prediction] product_id=5456 days=15 \u2192 4899.0
+INFO:     127.0.0.1:56697 - "GET /products/5456/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56697 - "GET /products/5457/price-history HTTP/1.1" 200 OK
+2026-05-12 12:29:03  INFO      app.main  [prediction] product_id=24993 days=15 \u2192 3.0
+INFO:     127.0.0.1:50992 - "GET /products/24993/prediction?days=15 HTTP/1.1" 200 OK
+2026-05-12 12:29:08  INFO      app.main  [prediction] product_id=5456 days=15 \u2192 4899.0
+INFO:     127.0.0.1:50992 - "GET /products/5456/prediction?days=15 HTTP/1.1" 200 OK
+2026-05-12 12:29:20  INFO      app.main  [prediction] product_id=24993 days=15 \u2192 3.0
+INFO:     127.0.0.1:59864 - "GET /products/24993/prediction?days=15 HTTP/1.1" 200 OK
+2026-05-12 12:35:20  INFO      app.main  [prediction] product_id=46156 days=15 \u2192 9.9
+INFO:     127.0.0.1:55473 - "GET /products/46156/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55473 - "GET /products/46156/price-history HTTP/1.1" 200 OK
+2026-05-12 12:35:40  INFO      app.main  [prediction] product_id=46156 days=15 \u2192 9.9
+INFO:     127.0.0.1:60539 - "GET /products/46156/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60539 - "GET /products/46156/price-history HTTP/1.1" 200 OK
+2026-05-12 12:35:51  INFO      app.main  [prediction] product_id=47721 days=15 \u2192 59.0
+INFO:     127.0.0.1:55029 - "GET /products/47721/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55029 - "GET /products/47720/price-history HTTP/1.1" 200 OK
+2026-05-12 12:36:33  INFO      app.main  [prediction] product_id=55361 days=15 \u2192 4776.841
+INFO:     127.0.0.1:56269 - "GET /products/55361/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56269 - "GET /products/55362/price-history HTTP/1.1" 200 OK
+^CINFO:     Started server process [32776]
+INFO:     Waiting for application startup.
+2026-05-12 14:52:12  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-05-12 14:52:12  INFO      app.database  [DB] Connexion OK — 60410 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+2026-05-12 15:21:20  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:55019 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55019 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+2026-05-12 15:22:12  INFO      app.main  [prediction] product_id=8424 days=15 \u2192 269.0
+INFO:     127.0.0.1:52671 - "GET /products/8424/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52671 - "GET /products/8424/price-history HTTP/1.1" 200 OK
+2026-05-12 15:25:06  INFO      app.main  [prediction] product_id=46398 days=15 \u2192 6394.485
+INFO:     127.0.0.1:60566 - "GET /products/46398/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60566 - "GET /products/46398/price-history HTTP/1.1" 200 OK
+2026-05-12 15:38:31  INFO      app.main  [prediction] product_id=56274 days=15 \u2192 3499.0
+INFO:     127.0.0.1:51387 - "GET /products/56274/prediction?days=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51387 - "GET /products/56274/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50436 - "GET /products/56274/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50436 - "GET /products/46387/price-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50436 - "GET /products/56274/price-history HTTP/1.1" 200 OK
+^CINFO:     Started server process [848]
+INFO:     Waiting for application startup.
+2026-05-13 10:52:05  INFO      app.main  Service 2 – Price History & Prédiction démarré
+2026-05-13 10:52:05  INFO      app.database  [DB] Connexion OK — 60410 produits trouvés dans la DB partagée
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)

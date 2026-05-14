@@ -1,0 +1,10 @@
+fastapi==0.122.0
+uvicorn==0.38.0
+sqlalchemy==2.0.46
+psycopg2-binary==2.9.11
+python-jose==3.5.0
+passlib==1.7.4  # (si tu utilises hashage de mot de passe)
+python-multipart==0.0.9  # (pour les formulaires login)
+pydantic==2.12.5
+python-dotenv
+pydantic[email]

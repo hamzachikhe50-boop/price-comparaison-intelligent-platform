@@ -1,0 +1,442 @@
+# Tunisia Price Hunter — Backend
+
+> Plateforme de comparaison de prix en temps réel pour les sites e-commerce tunisiens (Mytek, Spacenet, Tunisianet), avec authentification, historique des prix, prédiction et alertes email.
+
+---
+
+## Table des matières
+
+1. [Présentation du projet](#1-présentation-du-projet)
+2. [Architecture générale](#2-architecture-générale)
+3. [Structure du projet](#3-structure-du-projet)
+4. [Services et responsabilités](#4-services-et-responsabilités)
+5. [Technologies utilisées](#5-technologies-utilisées)
+6. [Prérequis](#6-prérequis)
+7. [Installation et déploiement](#7-installation-et-déploiement)
+8. [Variables d'environnement](#8-variables-denvironnement)
+9. [Endpoints API](#9-endpoints-api)
+10. [Choix techniques](#10-choix-techniques)
+11. [Déploiement en production](#11-déploiement-en-production)
+
+---
+
+## 1. Présentation du projet
+
+Tunisia Price Hunter est une application web qui permet aux utilisateurs de **comparer les prix de produits électroniques** à travers les principaux sites marchands tunisiens en temps réel, de suivre l'**historique des prix**, d'obtenir des **prédictions de prix** par machine learning, et de configurer des **alertes email** lorsqu'un produit atteint un prix cible.
+
+### Fonctionnalités principales
+
+- Recherche et comparaison de prix en temps réel (streaming SSE) sur Mytek, Spacenet et Tunisianet
+- Scraping planifié pour maintenir une base de produits à jour
+- Historique des prix avec visualisation de l'évolution
+- Prédiction de prix par modèle de régression (scikit-learn)
+- Alertes email automatiques lorsqu'un prix cible est atteint
+- Authentification sécurisée par JWT avec gestion des rôles (utilisateur / administrateur)
+- Interface d'administration avec tableau de bord et statistiques
+
+---
+
+## 2. Architecture générale
+
+Le backend est conçu selon une **architecture microservices** : chaque responsabilité métier est isolée dans un service indépendant, déployé dans son propre conteneur Docker.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Frontend (React)                    │
+└────────────┬───────────────────────────────┬────────────┘
+             │ HTTP / SSE                    │ HTTP
+             ▼                               ▼
+┌────────────────────┐           ┌───────────────────────┐
+│   App principale   │           │  Service Temps Réel   │
+│  Auth/Users/Admin  │           │  Scraping SSE (9000)  │
+│     port 8000      │           │  curl_cffi + httpx    │
+└────────┬───────────┘           └───────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│                      PostgreSQL                         │
+│            auth_db              scraper_db              │
+└──────────────┬──────────────────────────────────────────┘
+               │
+    ┌──────────┼──────────┐
+    ▼          ▼          ▼
+┌────────┐ ┌────────┐ ┌────────┐
+│ Serv.1 │ │ Serv.2 │ │ Serv.3 │
+│Scraping│ │  Prix  │ │Alertes │
+│  8001  │ │  8002  │ │  8003  │
+└────────┘ └────────┘ └────────┘
+```
+
+### Pourquoi une architecture microservices ?
+
+Le choix d'une architecture microservices au lieu d'une application monolithique apporte plusieurs avantages concrets pour ce projet :
+
+**Isolation des pannes** — les sites tunisiens modifient fréquemment leur HTML. Si le service de scraping tombe suite à un changement de sélecteurs, les utilisateurs peuvent toujours se connecter et recevoir leurs alertes. Chaque service tombe indépendamment.
+
+**Déploiement ciblé** — modifier le matcher de comparaison ne nécessite de rebuilder et redémarrer que le service temps réel, sans toucher aux autres.
+
+**Images Docker légères** — chaque image n'installe que ses propres dépendances. L'app principale n'embarque pas Playwright ni scikit-learn. Cela réduit les tailles d'images et les temps de build.
+
+**Scalabilité indépendante** — si le service de scraping temps réel est fortement sollicité, on peut lancer plusieurs instances sans dupliquer l'ensemble du backend.
+
+---
+
+## 3. Structure du projet
+
+```
+backend/
+├── .env.example                    # Template des variables d'environnement
+├── .gitignore
+├── docker-compose.yml              # Orchestration de tous les services
+│
+├── Dockerfile.app                  # Service auth / users / admin
+├── Dockerfile.service1             # Service scraping planifié
+├── Dockerfile.service2             # Service historique des prix
+├── Dockerfile.service3             # Service alertes email
+├── Dockerfile.realtime             # Service scraping temps réel
+│
+├── requirements.app.txt            # Dépendances app principale
+│
+├── scripts/
+│   └── create_databases.sh         # Initialisation des bases PostgreSQL
+│
+├── app/                            # Application principale FastAPI
+│   ├── main.py
+│   ├── auth.py                     # Logique JWT
+│   ├── database.py                 # Connexion SQLAlchemy → auth_db
+│   ├── models.py                   # Modèles ORM (User)
+│   ├── schemas.py                  # Schémas Pydantic
+│   └── routers/
+│       ├── auth.py                 # /auth/register, /auth/login
+│       ├── users.py                # /users/me, /users/
+│       └── admin.py                # /admin/dashboard
+│
+├── microservices/
+│   ├── service1-scraping/          # Scraping planifié (Mytek, Spacenet, Tunisianet)
+│   ├── service2-price/             # Historique + prédiction ML des prix
+│   └── service3-alerts/            # Alertes email (APScheduler + Gmail)
+│
+└── Scraping_temps_reel/            # Scraping en temps réel via SSE
+    ├── main.py                     # API FastAPI + streaming SSE
+    └── matcher.py                  # Algorithme de matching cross-sites
+```
+
+---
+
+## 4. Services et responsabilités
+
+### App principale — port 8000
+
+Service d'authentification et de gestion des utilisateurs. C'est le point d'entrée sécurisé de l'application.
+
+| Route | Méthode | Description |
+|---|---|---|
+| `/auth/register` | POST | Inscription d'un nouvel utilisateur |
+| `/auth/login` | POST | Connexion, retourne un token JWT |
+| `/users/me` | GET | Profil de l'utilisateur connecté |
+| `/users/` | GET | Liste des utilisateurs (admin) |
+| `/admin/dashboard` | GET | Statistiques et tableau de bord |
+
+Le premier utilisateur inscrit devient automatiquement administrateur. Les tokens JWT ont une durée de vie configurable (défaut : 30 minutes).
+
+### Service 1 — Scraping planifié (port 8001)
+
+Scraping périodique des catalogues Mytek, Spacenet et Tunisianet. Les produits sont stockés dans `scraper_db` pour alimenter les services 2 et 3.
+
+| Route | Méthode | Description |
+|---|---|---|
+| `/scrape/sync-urls` | POST | Synchronise les URLs de catégories |
+| `/scrape/start` | POST | Lance un scraping manuel |
+| `/products` | GET | Liste des produits en base |
+
+### Service 2 — Historique des prix (port 8002)
+
+Suivi de l'évolution des prix dans le temps et prédiction par régression linéaire (scikit-learn).
+
+| Route | Méthode | Description |
+|---|---|---|
+| `/products/{id}/price-history` | GET | Historique des prix d'un produit |
+| `/products/{id}/prediction` | GET | Prédiction du prix à N jours |
+| `/` | GET | Statistiques de la base de données |
+
+### Service 3 — Alertes email (port 8003)
+
+Gestion des alertes de prix. L'utilisateur définit un prix cible ; quand un produit atteint ce prix, un email est envoyé automatiquement via Gmail. Un scheduler APScheduler vérifie les alertes chaque nuit à l'heure configurée.
+
+| Route | Méthode | Description |
+|---|---|---|
+| `/alerts` | POST | Créer une alerte de prix |
+| `/alerts` | GET | Lister les alertes actives |
+| `/alerts/verify` | POST | Déclencher une vérification manuelle |
+
+### Service Temps Réel — port 9000
+
+Scraping à la demande avec diffusion des résultats en **Server-Sent Events (SSE)**. Le frontend reçoit les produits au fur et à mesure qu'ils sont scrappés, sans attendre la fin de toutes les requêtes. Un cache en mémoire (TTL 5 minutes) évite de rescraper des requêtes identiques récentes.
+
+| Route | Méthode | Description |
+|---|---|---|
+| `/api/search/stream` | GET | Recherche multi-sites en streaming |
+| `/api/compare/stream` | GET | Comparaison du meilleur prix par site |
+| `/api/cache/stats` | GET | État du cache en mémoire |
+| `/api/cache/clear` | POST | Vider le cache |
+| `/api/proxy-image` | GET | Proxy des images produits (CORS) |
+| `/health` | GET | État du service |
+
+---
+
+## 5. Technologies utilisées
+
+### Backend
+
+| Technologie | Usage |
+|---|---|
+| **FastAPI** | Framework web Python — toutes les APIs |
+| **SQLAlchemy** | ORM pour PostgreSQL |
+| **PostgreSQL** | Base de données relationnelle |
+| **Pydantic** | Validation des données et schémas |
+| **python-jose** | Génération et validation des tokens JWT |
+| **passlib / bcrypt** | Hachage sécurisé des mots de passe |
+
+### Scraping
+
+| Technologie | Usage |
+|---|---|
+| **httpx** | Requêtes HTTP async pour Spacenet et Tunisianet |
+| **curl_cffi** | Requêtes HTTP avec fingerprint Chrome pour Mytek (remplace Playwright) |
+| **selectolax** | Parsing HTML ultra-rapide (alternative à BeautifulSoup) |
+
+### Infrastructure
+
+| Technologie | Usage |
+|---|---|
+| **Docker** | Conteneurisation de chaque service |
+| **Docker Compose** | Orchestration de l'ensemble des services |
+| **APScheduler** | Tâches planifiées (scraping + vérification alertes) |
+| **SSE (Server-Sent Events)** | Streaming temps réel vers le frontend |
+
+### Machine Learning
+
+| Technologie | Usage |
+|---|---|
+| **scikit-learn** | Modèle de régression pour la prédiction de prix |
+| **numpy** | Traitement des séries de données |
+
+---
+
+## 6. Prérequis
+
+- **Docker** version 24+ et **Docker Compose** v2
+- Un compte Gmail avec un **mot de passe d'application** (pour les alertes email)
+- Git
+
+---
+
+## 7. Installation et déploiement
+
+### Étape 1 — Cloner le dépôt
+
+```bash
+git clone https://github.com/TON_USERNAME/tunisia-price-hunter.git
+cd tunisia-price-hunter/backend
+```
+
+### Étape 2 — Configurer les variables d'environnement
+
+```bash
+cp .env.example .env
+nano .env   # remplir les valeurs (voir section 8)
+```
+
+### Étape 3 — Rendre le script d'initialisation exécutable
+
+```bash
+chmod +x scripts/create_databases.sh
+```
+
+### Étape 4 — Build et démarrage
+
+```bash
+docker compose up --build -d
+```
+
+Cette commande construit toutes les images et démarre les 6 conteneurs (postgres + 5 services) en arrière-plan. La première exécution prend environ 2–3 minutes.
+
+### Étape 5 — Vérification
+
+```bash
+# État de tous les conteneurs
+docker compose ps
+
+# Logs en direct
+docker compose logs -f app
+docker compose logs -f realtime
+```
+
+### Étape 6 — Tester les APIs
+
+```
+http://localhost:8000/docs   → Swagger App principale
+http://localhost:8001/docs   → Swagger Scraping planifié
+http://localhost:8002/docs   → Swagger Historique des prix
+http://localhost:8003/docs   → Swagger Alertes
+http://localhost:9000/health → Santé service temps réel
+```
+
+### Commandes utiles
+
+```bash
+# Arrêter tous les services
+docker compose down
+
+# Arrêter et supprimer les données (reset complet)
+docker compose down -v
+
+# Rebuilder un seul service sans toucher aux autres
+docker compose up --build -d realtime
+
+# Voir les logs d'un service spécifique
+docker compose logs -f service3
+```
+
+---
+
+## 8. Variables d'environnement
+
+Créer un fichier `.env` à la racine de `backend/` avec les valeurs suivantes :
+
+```env
+# Base de données
+DB_PASSWORD=mot_de_passe_fort
+
+# JWT (app principale)
+SECRET_KEY=chaine_aleatoire_longue_minimum_32_caracteres
+
+# CORS — URL du frontend déployé
+FRONTEND_URLS=http://localhost:5173,https://mon-frontend.com
+
+# Gmail — alertes email
+GMAIL_USER=mon.email@gmail.com
+GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
+
+# Heure de vérification automatique des alertes (format 24h)
+ALERT_CHECK_HOUR=3
+ALERT_CHECK_MINUTE=30
+```
+
+> **Important** : le fichier `.env` est listé dans `.gitignore` et ne doit jamais être committé sur GitHub. Seul `.env.example` (sans valeurs réelles) est versionné.
+
+Pour générer le mot de passe d'application Gmail : [https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+
+---
+
+## 9. Endpoints API
+
+### Exemple — Recherche en temps réel (SSE)
+
+```bash
+curl -N "http://localhost:9000/api/search/stream?q=laptop"
+```
+
+Les résultats arrivent au fur et à mesure, site par site :
+
+```
+data: {"boutique": "Spacenet", "produits": [...], "page": 1, "count": 12}
+data: {"boutique": "Tunisianet", "produits": [...], "page": 1, "count": 8}
+data: {"boutique": "Mytek", "produits": [...], "page": 1, "count": 10}
+data: [DONE]
+```
+
+### Exemple — Comparaison cross-sites
+
+```bash
+curl -N "http://localhost:9000/api/compare/stream?q=iphone+15"
+```
+
+```json
+{
+  "nom_principal": "Apple iPhone 15 128Go",
+  "reference": "IPHONE15-128",
+  "est_meme_produit": true,
+  "offres": [
+    {"boutique": "Mytek", "prix": "3499 TND", "lien": "..."},
+    {"boutique": "Spacenet", "prix": "3450 TND", "lien": "..."}
+  ]
+}
+```
+
+### Exemple — Créer une alerte de prix
+
+```bash
+curl -X POST http://localhost:8003/alerts \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "u1",
+    "user_email": "utilisateur@gmail.com",
+    "product_id": 42,
+    "prix_cible": 900.0
+  }'
+```
+
+---
+
+## 10. Choix techniques
+
+### curl_cffi à la place de Playwright pour Mytek
+
+Mytek protège son site contre les scrapers classiques via **TLS fingerprinting** : il vérifie que la signature TLS de la requête correspond à un vrai navigateur. Playwright (Chromium headless) contournait ce problème mais consommait 300–500 Mo de RAM par requête et nécessitait l'installation d'un navigateur complet dans l'image Docker.
+
+`curl_cffi` reproduit exactement le fingerprint TLS de Chrome 120 au niveau de la connexion réseau, sans lancer de navigateur. Le résultat est identique mais avec des performances radicalement différentes :
+
+| Critère | Playwright | curl_cffi |
+|---|---|---|
+| Temps par page | 3 – 8 secondes | 50 – 200 ms |
+| RAM consommée | 300 – 500 Mo | ~5 Mo |
+| Taille image Docker | +700 Mo | +15 Mo |
+| Dépendances système | Chromium + 30 libs | libcurl |
+
+### Server-Sent Events (SSE) pour le streaming
+
+Plutôt que d'attendre que les 3 sites soient tous scrappés pour renvoyer un résultat, l'API envoie les produits **site par site dès qu'ils sont disponibles**. L'utilisateur voit les premiers résultats en moins d'une seconde. SSE est préféré à WebSocket ici car la communication est unidirectionnelle (serveur → client).
+
+### Deux bases de données séparées
+
+`auth_db` contient exclusivement les utilisateurs et leurs tokens. `scraper_db` contient les produits, historiques de prix et alertes. Cette séparation garantit que même en cas de corruption de la base de données de scraping, les données d'authentification restent intactes.
+
+### Cache en mémoire côté service temps réel
+
+Le service temps réel maintient un cache avec une TTL de 5 minutes. Si deux utilisateurs recherchent le même produit à quelques secondes d'intervalle, le second reçoit les résultats instantanément depuis le cache. Ce cache est nettoyé automatiquement toutes les 5 minutes par une tâche asyncio en arrière-plan.
+
+---
+
+## 11. Déploiement en production
+
+### Option recommandée — VPS (Hetzner, DigitalOcean, Contabo)
+
+Minimum recommandé : **2 Go de RAM, 2 vCPU** (ex: Hetzner CX21 à 4.5€/mois).
+
+```bash
+# Sur le serveur
+sudo apt update && sudo apt install -y docker.io docker-compose-plugin git
+git clone https://github.com/TON_USERNAME/tunisia-price-hunter.git
+cd tunisia-price-hunter/backend
+cp .env.example .env && nano .env
+chmod +x scripts/create_databases.sh
+docker compose up --build -d
+```
+
+### Option alternative — Railway / Render
+
+Ces plateformes supportent Docker Compose et proposent un tier gratuit. Ajouter une base de données PostgreSQL depuis leur marketplace et configurer les variables d'environnement dans leur interface.
+
+### Sécurité en production
+
+- Placer un **reverse proxy Nginx** devant les services (un seul port 443 exposé)
+- Activer **HTTPS** avec Certbot / Let's Encrypt
+- Retirer les ports 5432, 8001, 8002, 8003 du `docker-compose.yml` (les garder internes au réseau Docker)
+- Utiliser des secrets Docker ou un gestionnaire de secrets au lieu du fichier `.env`
+
+---
+
+## Auteur
+
+Projet développé dans le cadre d'un rapport académique sur les architectures microservices et le scraping web en Python.
