@@ -67,7 +67,7 @@ class ScrapeTask(Base):
     task_id = Column(String(100), unique=True, index=True)
     site    = Column(String(50), nullable=False)
     categories     = Column(Text, nullable=True)
-    status         = Column(Enum(TaskStatus), default=TaskStatus.PENDING, index=True)
+    status         = Column(Enum(TaskStatus, native_enum=False), default=TaskStatus.PENDING, index=True)
     total_scraped  = Column(Integer, default=0)
     total_inserted = Column(Integer, default=0)
     total_updated  = Column(Integer, default=0)
