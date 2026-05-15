@@ -9,7 +9,7 @@ import asyncio
 import logging
 import threading
 import time
-import base64 # Ajouté pour la capture d'écran dans les logs
+import base64 
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Dict, Any
 from playwright.async_api import async_playwright
@@ -73,10 +73,6 @@ CONFIGS_HTML = {
 
 
 async def _fetch_html_categories(boutique: str) -> List[Dict]:
-    """
-    Scrape les catégories d'un site HTML statique (Spacenet ou Tunisianet)
-    en utilisant httpx + selectolax.
-    """
     config   = CONFIGS_HTML[boutique]
     base_url = config["url"]
     categories_raw: List[Dict] = []
@@ -152,15 +148,12 @@ async def _fetch_html_categories(boutique: str) -> List[Dict]:
 
 
 async def _fetch_mytek_categories() -> List[Dict]:
-    """
-    Scrape le menu de Mytek avec anti-détection intégré et capture d'écran
-    en cas d'échec pour voir ce que Render voit réellement.
-    """
     categories_raw: List[Dict] = []
 
     async with async_playwright() as pw:
+        # MODIFICATION ICI : headless=False pour contourner la détection
         browser = await pw.chromium.launch(
-            headless=True,
+            headless=False,
             args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
         )
         
@@ -176,14 +169,12 @@ async def _fetch_mytek_categories() -> List[Dict]:
         try:
             page = await context.new_page()
             
-            # SCRIPT ANTI-DETECTION : Cache le flag "webdriver" pour tromper Cloudflare
             await page.add_init_script("""
                 Object.defineProperty(navigator, 'webdriver', {
                     get: () => undefined
                 });
             """)
             
-            # Bloquer images/polices pour accélérer le chargement sur Render
             await page.route(
                 "**/*.{png,jpg,jpeg,gif,svg,webp,woff,woff2,ttf,eot}",
                 lambda route: route.abort(),
@@ -193,7 +184,6 @@ async def _fetch_mytek_categories() -> List[Dict]:
                 logger.info("Navigation vers https://www.mytek.tn ...")
                 await page.goto("https://www.mytek.tn", wait_until="networkidle", timeout=45000)
 
-                # Gérer les cookies
                 try:
                     await asyncio.sleep(1)
                     accept_btn = page.locator("button:has-text('Accepter'), button:has-text('Tout'), .cc-btn")
@@ -202,7 +192,6 @@ async def _fetch_mytek_categories() -> List[Dict]:
                 except Exception:
                     pass
 
-                # Injection CSS pour forcer l'affichage
                 logger.info("Injection CSS globale pour forcer la visibilité du menu...")
                 await page.evaluate("""
                     () => {
@@ -220,16 +209,14 @@ async def _fetch_mytek_categories() -> List[Dict]:
                 
                 await asyncio.sleep(1)
 
-                # Attendre que le menu soit là
                 try:
                     await page.wait_for_selector("ul.vertical-list > li.rootverticalnav", timeout=15000)
                     rayon_items = await page.locator("ul.vertical-list > li.rootverticalnav").all()
                 except Exception as e:
                     logger.error("Le menu de Mytek n'a pas été trouvé à temps.")
-                    # CAPTURE D'ÉCRAN EN BASE64 : Permet de voir l'image dans les logs
                     screenshot_bytes = await page.screenshot()
                     b64_image = base64.b64encode(screenshot_bytes).decode('utf-8')
-                    logger.error(f"VOIR CAPTURE (copier-coller tout le texte ci-après dans la barre d'adresse de ton navigateur) : data:image/png;base64,{b64_image}")
+                    logger.error(f"VOIR CAPTURE (copier-coller dans le navigateur) : data:image/png;base64,{b64_image}")
                     rayon_items = []
 
                 logger.info(f"{len(rayon_items)} rayons détectés.")

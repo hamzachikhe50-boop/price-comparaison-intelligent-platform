@@ -42,7 +42,6 @@ PAGE_MIN_PRODUCTS = 12
 
 
 class MytekScraper(BaseScraper):
-
     @property
     def site_name(self) -> str:
         return "mytek"

@@ -73,8 +73,6 @@ HEADERS_MYTEK = {
     "Upgrade-Insecure-Requests": "1",
 }
 
-# Proxy optionnel pour Mytek (utile si l'IP du serveur est tout de même bloquée)
-# Définir la variable d'environnement MYTEK_PROXY, ex: "http://user:pass@host:port"
 MYTEK_PROXY = os.environ.get("MYTEK_PROXY", "")
 
 IMAGE_CACHE = {}
@@ -97,7 +95,6 @@ async def get_http_client() -> httpx.AsyncClient:
     return _http_client
 
 async def get_curl_client() -> AsyncSession:
-    """Client curl_cffi avec empreinte TLS Chrome pour contourner Cloudflare."""
     global _curl_client
     if _curl_client is None:
         proxy = MYTEK_PROXY if MYTEK_PROXY else None
@@ -111,26 +108,24 @@ async def get_curl_client() -> AsyncSession:
 
 async def _mytek_warmup(client: AsyncSession) -> bool:
     """
-    Visite la homepage Mytek pour obtenir les cookies Cloudflare (clearance).
-    Retourne True si l'accès est OK, False sinon.
+    Visite la homepage Mytek. 
+    Note: curl_cffi ne peut pas résoudre les challenges JS Cloudflare, 
+    mais ce warmup permet d'initialiser la session et les cookies de base.
     """
     try:
+        print("⏳ [MYTEK WARMUP] Tentative d'accès à la homepage...", flush=True)
         r = await client.get("https://www.mytek.tn/", headers=HEADERS_MYTEK, timeout=15.0)
+        print(f"ℹ️ [MYTEK WARMUP] Statut reçu: {r.status_code}", flush=True)
+        
         if r.status_code == 200 and "Just a moment" not in r.text:
-            print("✅ Mytek warmup: homepage accessible, cookies Cloudflare obtenus")
+            print("✅ [MYTEK WARMUP] Homepage accessible (pas de challenge JS).", flush=True)
             return True
         else:
-            print(f"⚠️ Mytek warmup: statut={r.status_code}, Cloudflare challenge probable")
-            # Deuxième tentative après un délai
-            await asyncio.sleep(3.0)
-            r2 = await client.get("https://www.mytek.tn/", headers=HEADERS_MYTEK, timeout=15.0)
-            if r2.status_code == 200 and "Just a moment" not in r2.text:
-                print("✅ Mytek warmup: succès au 2ème essai")
-                return True
-            print("❌ Mytek warmup: échec, Cloudflare bloque toujours")
+            snippet = r.text[:150].replace('\n', ' ')
+            print(f"⚠️ [MYTEK WARMUP] Bloqué ou Challenge Cloudflare détecté. HTML: {snippet}", flush=True)
             return False
     except Exception as e:
-        print(f"❌ Mytek warmup erreur: {e}")
+        print(f"❌ [MYTEK WARMUP] Erreur: {e}", flush=True)
         return False
 
 async def fetch_missing_details(produit: dict) -> dict:
@@ -189,10 +184,10 @@ async def scraper_html_worker(queue: asyncio.Queue, client: httpx.AsyncClient, b
                     produits_page.append({"nom": n.text(strip=True), "prix": p.text(strip=True), "image": img_src, "lien": n.attributes.get("href", ""), "boutique": boutique, "page": page_num, "temps_scrape": temps_scrape, "reference": ref, "description": ""})
             if not produits_page: break
             await queue.put({"boutique": boutique, "produits": produits_page, "page": page_num, "count": len(produits_page)})
-            print(f"📦 {boutique} P{page_num}: {len(produits_page)} produits ({temps_scrape}s)")
+            print(f"📦 {boutique} P{page_num}: {len(produits_page)} produits ({temps_scrape}s)", flush=True)
             if page_num == 1 and not tree.css_first(config["has_next_page"]): break
             await asyncio.sleep(0.2)
-    except Exception as e: print(f"❌ Erreur {boutique}: {e}")
+    except Exception as e: print(f"❌ Erreur {boutique}: {e}", flush=True)
 
 def _extraire_produits_mytek(tree, page_num, temps_scrape):
     configs = [
@@ -228,78 +223,76 @@ def _extraire_produits_mytek(tree, page_num, temps_scrape):
     return []
 
 # ============================================================
-#  WORKER MYTEK AVEC CURL_CFI
+#  WORKER MYTEK AVEC CURL_CFI (LOGS DÉTAILLÉS)
 # ============================================================
 async def scraper_mytek_worker(queue: asyncio.Queue, query: str, max_pages: int = 10):
+    print(f"🟢 [MYTEK WORKER] Démarrage pour la requête: '{query}'", flush=True)
     client = await get_curl_client()
 
     search_urls = [
         {"base": "https://www.mytek.tn/catalogsearch/result/?q={query}", "page": "https://www.mytek.tn/catalogsearch/result/?q={query}&p={page}"},
     ]
 
-    MAX_RETRIES = 3
+    MAX_RETRIES = 2 # Réduit pour ne pas bloquer l'API trop longtemps sur Render
 
-    # ── Warmup : obtenir les cookies Cloudflare ──
     warmup_ok = await _mytek_warmup(client)
     if not warmup_ok:
-        print("🛑 Mytek: warmup échoué, tentative quand même...")
+        print("🛑 [MYTEK WORKER] Warmup échoué, les requêtes vont probablement échouer aussi.", flush=True)
 
     for url_conf in search_urls:
         produits_trouves = False
         for page_num in range(1, max_pages + 1):
             start = time.time()
             target_url = url_conf["base"].format(query=query) if page_num == 1 else url_conf["page"].format(query=query, page=page_num)
+            print(f"🌐 [MYTEK WORKER] Cible: {target_url}", flush=True)
 
             html = None
-            # ── Système de retry ──
             for attempt in range(1, MAX_RETRIES + 1):
+                print(f"⏳ [MYTEK WORKER] Tentative {attempt}/{MAX_RETRIES}...", flush=True)
                 try:
                     r = await client.get(target_url, headers=HEADERS_MYTEK, timeout=20.0)
 
+                    # LOGS CRITIQUES
+                    print(f"📥 [MYTEK WORKER] Statut HTTP: {r.status_code}", flush=True)
+                    snippet = r.text[:200].replace('\n', ' ').replace('\r', '')
+                    print(f"📄 [MYTEK WORKER] Début HTML: {snippet}...", flush=True)
+
                     if r.status_code == 200:
-                        # Vérifier que ce n'est pas une page challenge Cloudflare
                         if "Just a moment" in r.text or "Checking your browser" in r.text:
-                            print(f"⚠️ Mytek: Cloudflare challenge détecté (Tentative {attempt}/{MAX_RETRIES})...")
-                            # Ré-essayer le warmup pour obtenir de nouveaux cookies
-                            await _mytek_warmup(client)
+                            print(f"🛑 [MYTEK WORKER] Cloudflare challenge détecté dans le HTML !", flush=True)
                             await asyncio.sleep(2.0)
                             continue
                         html = r.text
-                        break  # Succès
+                        print(f"✅ [MYTEK WORKER] HTML valide reçu !", flush=True)
+                        break
 
                     elif r.status_code == 403:
-                        print(f"⚠️ Mytek: 403 Forbidden (Tentative {attempt}/{MAX_RETRIES})...")
-                        await _mytek_warmup(client)
-                        await asyncio.sleep(2.0)
-                        continue
+                        print(f"🛑 [MYTEK WORKER] 403 Forbidden ! L'IP de Render est bloquée.", flush=True)
+                        break # Ne pas retry sur un 403, ça ne servira à rien sans proxy
 
                     elif r.status_code == 503:
-                        print(f"⚠️ Mytek: 503 Service Unavailable (Tentative {attempt}/{MAX_RETRIES})...")
+                        print(f"⚠️ [MYTEK WORKER] 503 Service Unavailable.", flush=True)
                         await asyncio.sleep(3.0)
                         continue
 
                     else:
-                        print(f"❌ Mytek curl_cffi erreur HTTP: {r.status_code}")
+                        print(f"❌ [MYTEK WORKER] Autre erreur HTTP: {r.status_code}", flush=True)
                         break
 
                 except asyncio.TimeoutError:
-                    print(f"⏱️ Timeout curl_cffi Mytek (Tentative {attempt}/{MAX_RETRIES})...")
+                    print(f"⏱️ [MYTEK WORKER] Timeout curl_cffi !", flush=True)
                     continue
                 except Exception as e:
-                    print(f"❌ Erreur Mytek curl_cffi: {e}")
-                    # Si la session est cassée, la recréer
-                    if "session" in str(e).lower() or "curl" in str(e).lower():
-                        global _curl_client
-                        try: await _curl_client.close()
-                        except: pass
-                        _curl_client = None
-                        client = await get_curl_client()
-                        await _mytek_warmup(client)
+                    print(f"❌ [MYTEK WORKER] Exception curl_cffi: {e}", flush=True)
+                    global _curl_client
+                    try: await _curl_client.close()
+                    except: pass
+                    _curl_client = None
+                    client = await get_curl_client()
                     continue
 
-            # Si après tous les retry on n'a toujours pas de HTML
             if not html:
-                if page_num == 1: print("🛑 Mytek: Abandon, impossible d'accéder à la page après retries.")
+                if page_num == 1: print("🛑 [MYTEK WORKER] ABANDON : Impossible d'accéder à la page.", flush=True)
                 break
 
             tree = selectolax.parser.HTMLParser(html)
@@ -307,12 +300,12 @@ async def scraper_mytek_worker(queue: asyncio.Queue, query: str, max_pages: int 
             produits_page = _extraire_produits_mytek(tree, page_num, temps_scrape)
 
             if not produits_page:
-                if page_num == 1: print(f"❌ Mytek: 0 produit extrait de {target_url}")
+                if page_num == 1: print(f"❌ [MYTEK WORKER] 0 produit extrait de {target_url}", flush=True)
                 break
 
             produits_trouves = True
             await queue.put({"boutique": "Mytek", "produits": produits_page, "page": page_num, "count": len(produits_page)})
-            print(f"📦 Mytek P{page_num}: {len(produits_page)} produits via curl_cffi ({temps_scrape}s)")
+            print(f"📦 [MYTEK WORKER] P{page_num}: {len(produits_page)} produits via curl_cffi ({temps_scrape}s)", flush=True)
 
             if len(produits_page) < 25: break
             await asyncio.sleep(1.0)
@@ -321,16 +314,16 @@ async def scraper_mytek_worker(queue: asyncio.Queue, query: str, max_pages: int 
             break
 
 # ============================================================
-#  FLUX DE RECHERCHE (STREAM SSE)
+#  FLUX DE RECHERCHE ET COMPARAISON
 # ============================================================
 async def flux_de_recherche_ordonne(query: str):
     resultat_en_cache = resultat_cache.get("search", query, CACHE_TTL)
     if resultat_en_cache is not None:
-        print(f"📋 Cache HIT pour recherche: {query}")
+        print(f"📋 Cache HIT pour recherche: {query}", flush=True)
         for data in resultat_en_cache: yield f"data: {json.dumps(data)}\n\n"
         yield "data: [DONE]\n\n"; return
 
-    print(f"🔍 Cache MISS pour recherche: {query}")
+    print(f"🔍 Cache MISS pour recherche: {query}", flush=True)
     queue = asyncio.Queue()
     client = await get_http_client()
 
@@ -356,7 +349,7 @@ async def flux_de_recherche_ordonne(query: str):
 
     if tous_les_resultats:
         resultat_cache.set("search", query, tous_les_resultats)
-        print(f"💾 Résultats mis en cache pour: {query} ({len(tous_les_resultats)} entrées)")
+        print(f"💾 Résultats mis en cache pour: {query} ({len(tous_les_resultats)} entrées)", flush=True)
     yield "data: [DONE]\n\n"
 
 def parse_prix_py(prix_str):
@@ -370,11 +363,11 @@ def parse_prix_py(prix_str):
 async def flux_compare_stream(query: str):
     resultat_en_cache = resultat_cache.get("compare", query, CACHE_TTL)
     if resultat_en_cache is not None:
-        print(f"📋 Cache HIT pour comparaison: {query}")
+        print(f"📋 Cache HIT pour comparaison: {query}", flush=True)
         for data in resultat_en_cache: yield f"data: {json.dumps(data)}\n\n"
         yield "data: [DONE]\n\n"; return
 
-    print(f"🔍 Cache MISS pour comparaison: {query}")
+    print(f"🔍 Cache MISS pour comparaison: {query}", flush=True)
     queue = asyncio.Queue()
     client = await get_http_client()
 
@@ -429,7 +422,7 @@ async def flux_compare_stream(query: str):
 
     if resultats_a_cache:
         resultat_cache.set("compare", query, resultats_a_cache)
-        print(f"💾 Résultats comparaison mis en cache pour: {query} ({len(resultats_a_cache)} groupes)")
+        print(f"💾 Résultats comparaison mis en cache pour: {query} ({len(resultats_a_cache)} groupes)", flush=True)
     yield "data: [DONE]\n\n"
 
 # ============================================================
@@ -439,16 +432,16 @@ async def cache_cleanup_task():
     while True:
         await asyncio.sleep(300)
         nb = resultat_cache.cleanup_expired(CACHE_TTL)
-        if nb > 0: print(f"🧹 Cache cleanup: {nb} entrées expirées supprimées")
+        if nb > 0: print(f"🧹 Cache cleanup: {nb} entrées expirées supprimées", flush=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 Démarrage de l'API...")
+    print("🚀 Démarrage de l'API...", flush=True)
     
-    print("⏳ Pré-chargement des clients HTTP...")
+    print("⏳ Pré-chargement des clients HTTP...", flush=True)
     await get_http_client()
     await get_curl_client()
-    print("✅ Clients HTTP prêts (httpx + curl_cffi) !")
+    print("✅ Clients HTTP prêts (httpx + curl_cffi) !", flush=True)
     
     cleanup_task = asyncio.create_task(cache_cleanup_task())
     yield 
@@ -463,7 +456,7 @@ async def lifespan(app: FastAPI):
         try: await _curl_client.close()
         except: pass
     resultat_cache.clear()
-    print("🛑 Arrêt de l'API.")
+    print("🛑 Arrêt de l'API.", flush=True)
 
 # ============================================================
 #  FASTAPI APP & ROUTES
@@ -495,9 +488,8 @@ async def proxy_image(img_url: str = Query(...)):
         return Response(content=response.content, media_type=response.headers.get("content-type", "image/jpeg"), headers={"Cache-Control": "public, max-age=86400"})
     except: return Response(status_code=404)
 
-import os
 import uvicorn
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000)) # 8000 sera le fallback en local
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
