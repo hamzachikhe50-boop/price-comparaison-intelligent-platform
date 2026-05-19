@@ -475,7 +475,7 @@ async def rechercher_stream(q: str = Query(..., min_length=2)): return Streaming
 async def comparer_stream(q: str = Query(..., min_length=2)): return StreamingResponse(flux_compare_stream(q), media_type="text/event-stream")
 
 @app.get("/health")
-async def health(): return {"status": "ok", "boutiques": ["Tunisianet", "Spacenet", "Mytek"], "cache_size": resultat_cache.size()}
+async def health(): return {"status": "ok Scraping temps reel ", "boutiques": ["Tunisianet", "Spacenet", "Mytek"], "cache_size": resultat_cache.size()}
 
 @app.get("/api/proxy-image")
 async def proxy_image(img_url: str = Query(...)):

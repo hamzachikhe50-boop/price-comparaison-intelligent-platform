@@ -217,7 +217,9 @@ def list_alertes(
     return crud.get_alertes(db, user_id=user_id, product_id=product_id,
                             active_only=active_only, limit=limit)
 
-
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "service": "alerts"}
 @app.get(
     "/alerts/stats",
     response_model=schemas.AlertStats,
