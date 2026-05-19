@@ -10,7 +10,7 @@ import logging
 import threading
 import time
 import re
-import unicodedata
+import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Dict, Any
 
@@ -56,29 +56,35 @@ HEADERS_HTTP = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
 
-HEADERS_MYTEK_API = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": "application/json",
-    "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8",
-}
+MYTEK_REST_BASE = "https://www.mytek.tn/rest/V1"
+MYTEK_PROXY     = os.environ.get("MYTEK_PROXY", "")
+
+UA_CHROME = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36"
+)
 
 HEADERS_MYTEK_HTML = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": (
-        "text/html,application/xhtml+xml,application/xml;q=0.9,"
-        "image/avif,image/webp,image/apng,*/*;q=0.8"
-    ),
-    "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+    "User-Agent": UA_CHROME,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
     "Referer": "https://www.mytek.tn/",
+    "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Upgrade-Insecure-Requests": "1",
 }
 
-MYTEK_REST_BASE = "https://www.mytek.tn/rest/V1"
+HEADERS_MYTEK_API = {
+    "User-Agent": UA_CHROME,
+    "Accept": "application/json",
+    "Accept-Language": "fr-FR,fr;q=0.9",
+}
 
 # Configuration HTML pour Spacenet et Tunisianet
 CONFIGS_HTML = {
@@ -96,29 +102,6 @@ CONFIGS_HTML = {
     },
 }
 
-
-# ── Helpers Mytek ─────────────────────────────────────────────────────────────
-
-def _slugify(name: str) -> str:
-    """Convertit un nom en slug URL (convention Magento)."""
-    slug = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
-    slug = slug.lower().strip()
-    slug = re.sub(r"[^\w\s-]", "", slug)
-    slug = re.sub(r"[-\s]+", "-", slug)
-    return slug.strip("-")
-
-
-def _deduplicate_categories(categories: List[Dict]) -> List[Dict]:
-    seen = set()
-    unique = []
-    for item in categories:
-        if item["url"] not in seen:
-            seen.add(item["url"])
-            unique.append(item)
-    return unique
-
-
-# ── Sync URLs : Spacenet & Tunisianet (inchangé) ─────────────────────────────
 
 async def _fetch_html_categories(boutique: str) -> List[Dict]:
     config   = CONFIGS_HTML[boutique]
@@ -184,222 +167,237 @@ async def _fetch_html_categories(boutique: str) -> List[Dict]:
         except Exception as e:
             logger.error(f"[sync_urls] Erreur {boutique} : {e}")
 
-    result = _deduplicate_categories(categories_raw)
-    logger.info(f"[sync_urls] {boutique} : {len(result)} catégories trouvées")
-    return result
+    seen   = set()
+    unique = []
+    for item in categories_raw:
+        if item["url"] not in seen:
+            seen.add(item["url"])
+            unique.append(item)
+
+    logger.info(f"[sync_urls] {boutique} : {len(unique)} catégories trouvées")
+    return unique
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Sync URLs : Mytek — REST API + curl_cffi (remplace Playwright)
+#  _fetch_mytek_categories  —  curl_cffi + API REST Magento (sans Playwright)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _parse_mytek_category_tree(
-    node: dict,
-    result: List[Dict],
-    parent_name: str = "",
-    parent_slug: str = "",
-):
+def _make_mytek_session() -> AsyncSession:
+    proxy = MYTEK_PROXY if MYTEK_PROXY else None
+    return AsyncSession(
+        impersonate="chrome124",
+        verify=False,
+        timeout=20,
+        proxies={"http": proxy, "https": proxy} if proxy else None,
+    )
+
+
+async def _fetch_mytek_via_rest_api() -> Optional[List[Dict]]:
     """
-    Parse récursivement l'arbre des catégories retourné par
-    /rest/V1/categories et construit la liste des catégories.
-
-    Magento 2 retourne un arbre avec :
-      - id, parent_id, name, is_active, position, level
-      - children_data (ou children) : liste des sous-catégories
+    Stratégie 1 : API REST Magento /rest/V1/categories
+    Récupère l'arborescence complète des catégories sans toucher au WAF Cloudflare.
+    Retourne None si l'API est protégée (401) ou inaccessible.
     """
-    name = node.get("name", "")
-    cat_id = node.get("id")
-    children = node.get("children_data") or node.get("children") or []
-    is_active = node.get("is_active", True)
+    logger.info("[mytek REST] Récupération des catégories via API Magento...")
+    categories: List[Dict] = []
 
-    # Ignorer la racine (id <= 2) et les catégories inactives
-    if not name or not cat_id or int(cat_id) <= 2 or not is_active:
-        for child in children:
-            _parse_mytek_category_tree(child, result, parent_name, parent_slug)
-        return
-
-    slug = _slugify(name)
-
-    if parent_name:
-        # Construire l'URL (convention Magento : parent-slug/child-slug.html)
-        url = f"https://www.mytek.tn/{parent_slug}/{slug}.html"
-
-        result.append({
-            "boutique":       "Mytek",
-            "rayon":          parent_name,
-            "sous_categorie": name,
-            "url":            url,
-        })
-
-    # Descendre dans les enfants
-    for child in children:
-        _parse_mytek_category_tree(child, result, name, slug)
-
-
-def _parse_mytek_menu_html(tree, result: List[Dict]):
-    """
-    Parse le menu vertical de Mytek depuis le HTML de la homepage.
-    Fallback si la REST API n'est pas accessible.
-    """
-    # Sélecteurs pour le menu vertical Mytek
-    rayon_selectors = [
-        "ul.vertical-list > li.rootverticalnav",
-        "li.level0.nav-item",
-        "nav ul.menu > li",
-    ]
-
-    for rayon_sel in rayon_selectors:
-        rayon_nodes = tree.css(rayon_sel)
-        if not rayon_nodes:
-            continue
-
-        for rayon_node in rayon_nodes:
-            # Nom du rayon
-            rayon_name = ""
-            name_tag = rayon_node.css_first(
-                "span.main-category-name, a.level-top span, a.level-top"
+    async with _make_mytek_session() as client:
+        try:
+            # Récupérer la catégorie racine (id=2 sur Magento standard)
+            # avec toute l'arborescence en un seul appel
+            r = await client.get(
+                f"{MYTEK_REST_BASE}/categories?rootCategoryId=2",
+                headers=HEADERS_MYTEK_API,
+                timeout=15,
             )
-            if name_tag:
-                rayon_name = name_tag.text(strip=True)
-            if not rayon_name:
-                a_tag = rayon_node.css_first("a")
-                if a_tag:
-                    rayon_name = a_tag.text(strip=True)
+            logger.info(f"[mytek REST] /categories → HTTP {r.status_code}")
 
-            if not rayon_name or len(rayon_name) < 2:
-                continue
+            if r.status_code == 401:
+                logger.info("[mytek REST] API protégée par token, abandon.")
+                return None
 
-            # Liens de sous-catégories
-            submenu_selectors = [
-                "div.vertical_fullwidthmenu",
-                "div.mega-menu",
-                "ul.level0",
-                "div.submenu",
-            ]
+            if r.status_code != 200:
+                logger.info(f"[mytek REST] Erreur {r.status_code}, abandon.")
+                return None
 
-            links = []
-            for sub_sel in submenu_selectors:
-                submenu = rayon_node.css_first(sub_sel)
-                if submenu:
-                    links = submenu.css("a[href]")
-                    break
+            data = r.json()
 
-            if not links:
-                # Prendre tous les liens du rayon
-                links = rayon_node.css("a[href]")
+        except Exception as e:
+            logger.warning(f"[mytek REST] Exception : {e}")
+            return None
 
-            for link in links:
-                href = link.attributes.get("href", "")
-                sub_name = link.text(strip=True)
+    def _parse_category_tree(node, parent_name: str = "") -> None:
+        """Parcours récursif de l'arborescence Magento."""
+        name      = node.get("name", "").strip()
+        cat_id    = node.get("id")
+        level     = node.get("level", 0)
+        is_active = node.get("is_active", False)
+        children  = node.get("children_data", [])
 
-                if not href or not sub_name:
+        if not name or not is_active or level < 2:
+            for child in children:
+                _parse_category_tree(child, parent_name)
+            return
+
+        # Trouver l'URL via custom_attributes
+        url_key = ""
+        for attr in node.get("custom_attributes", []):
+            if attr.get("attribute_code") == "url_key":
+                url_key = attr.get("value", "")
+                break
+        if not url_key and name:
+            # Fallback : construire l'url_key depuis le nom
+            url_key = re.sub(r"[^a-z0-9-]", "-", name.lower()).strip("-")
+
+        # Niveau 2 = rayon, niveau 3+ = sous-catégorie
+        if level == 2:
+            rayon = name
+            for child in children:
+                _parse_category_tree(child, rayon)
+        else:
+            # Sous-catégorie feuille (ou niveau intermédiaire avec children)
+            rayon = parent_name or "Divers"
+            if url_key:
+                cat_url = f"https://www.mytek.tn/{url_key}.html"
+                categories.append({
+                    "boutique":       "Mytek",
+                    "rayon":          rayon,
+                    "sous_categorie": name,
+                    "url":            cat_url,
+                })
+            for child in children:
+                _parse_category_tree(child, rayon)
+
+    _parse_category_tree(data)
+
+    if not categories:
+        logger.warning("[mytek REST] Aucune catégorie extraite depuis l'arbre.")
+        return None
+
+    # Dédoublonnage
+    seen   = set()
+    unique = []
+    for item in categories:
+        if item["url"] not in seen:
+            seen.add(item["url"])
+            unique.append(item)
+
+    logger.info(f"[mytek REST] {len(unique)} catégories uniques trouvées.")
+    return unique
+
+
+async def _fetch_mytek_via_html() -> List[Dict]:
+    """
+    Stratégie 2 : Scraping HTML curl_cffi de la homepage Mytek.
+    Le menu de navigation est rendu côté serveur sur la homepage.
+    Sélecteurs basés sur la structure Magento de mytek.tn.
+    """
+    logger.info("[mytek HTML] Fallback scraping HTML de la homepage Mytek...")
+    categories_raw: List[Dict] = []
+
+    async with _make_mytek_session() as client:
+        try:
+            r = await client.get(
+                "https://www.mytek.tn",
+                headers=HEADERS_MYTEK_HTML,
+                timeout=20,
+            )
+            logger.info(f"[mytek HTML] Homepage → HTTP {r.status_code}")
+
+            if r.status_code == 403 or "Just a moment" in r.text or "Checking your browser" in r.text:
+                logger.warning("[mytek HTML] Cloudflare actif, impossible de scraper la homepage.")
+                return []
+
+            if r.status_code != 200:
+                return []
+
+            tree = selectolax.parser.HTMLParser(r.text)
+
+            # Sélecteurs du menu Mytek (structure Magento)
+            rayon_items = tree.css("ul.vertical-list > li.rootverticalnav")
+            if not rayon_items:
+                # Fallback sélecteur alternatif
+                rayon_items = tree.css("nav li.level0, ul.nav-sections li.level0")
+
+            logger.info(f"[mytek HTML] {len(rayon_items)} rayons détectés dans le HTML.")
+
+            for rayon_node in rayon_items:
+                # Nom du rayon
+                rayon_name = ""
+                for sel in ["span.main-category-name", "span.menu-title", "a > span", "a"]:
+                    n = rayon_node.css_first(sel)
+                    if n:
+                        rayon_name = n.text(strip=True)
+                        if rayon_name:
+                            break
+
+                if not rayon_name or len(rayon_name) < 2:
                     continue
-                if "javascript:" in href:
-                    continue
-                if len(sub_name) < 2:
-                    continue
-                if any(
-                    skip in sub_name.lower()
-                    for skip in ("voir", "all", "tout", "découvrir")
-                ):
+
+                # Sous-catégories dans le mega-menu
+                submenu = rayon_node.css_first("div.vertical_fullwidthmenu, div.submenu, ul.level1")
+                if not submenu:
                     continue
 
-                if not href.startswith("http"):
-                    href = "https://www.mytek.tn" + href
+                for link in submenu.css("a.title-normale, ul.level1 > li > a, div.grid-item-6 a"):
+                    href     = link.attributes.get("href", "")
+                    sub_name = link.text(strip=True)
 
-                # Ne garder que les URLs de catégories
-                if ".html" in href or "/catalog/category" in href:
-                    result.append({
+                    if not href or "javascript:" in href or not sub_name:
+                        continue
+                    if "voir" in sub_name.lower() or len(sub_name) < 2:
+                        continue
+
+                    if not href.startswith("http"):
+                        href = "https://www.mytek.tn" + href
+
+                    categories_raw.append({
                         "boutique":       "Mytek",
                         "rayon":          rayon_name,
                         "sous_categorie": sub_name,
                         "url":            href,
                     })
-        break  # Un seul sélecteur suffit s'il marche
+
+        except Exception as e:
+            logger.error(f"[mytek HTML] Exception : {e}")
+
+    seen   = set()
+    unique = []
+    for item in categories_raw:
+        if item["url"] not in seen:
+            seen.add(item["url"])
+            unique.append(item)
+
+    logger.info(f"[mytek HTML] {len(unique)} catégories uniques trouvées.")
+    return unique
 
 
 async def _fetch_mytek_categories() -> List[Dict]:
     """
-    Scrape les catégories Mytek via :
-      1) Magento REST API /rest/V1/categories (priorité — contourne Cloudflare)
-      2) curl_cffi HTML de la homepage (fallback)
+    Orchestrateur pour récupérer les catégories Mytek.
+    Stratégie 1 : API REST Magento (sans Cloudflare, gratuit)
+    Stratégie 2 : Scraping HTML curl_cffi (fallback)
+    Aucun Playwright — compatible Render.com.
     """
-    categories_raw: List[Dict] = []
+    # Stratégie 1 : API REST
+    result = await _fetch_mytek_via_rest_api()
+    if result:
+        logger.info(f"[mytek] Catégories obtenues via REST API ({len(result)} entrées).")
+        return result
 
-    # ── Stratégie 1 : REST API ──────────────────────────────────────────────
-    try:
-        async with httpx.AsyncClient(
-            timeout=20.0, headers=HEADERS_MYTEK_API
-        ) as client:
-            r = await client.get(f"{MYTEK_REST_BASE}/categories")
+    # Stratégie 2 : HTML scraping
+    logger.info("[mytek] Fallback vers scraping HTML...")
+    result = await _fetch_mytek_via_html()
+    if result:
+        logger.info(f"[mytek] Catégories obtenues via HTML ({len(result)} entrées).")
+        return result
 
-            if r.status_code == 200:
-                tree = r.json()
-                _parse_mytek_category_tree(tree, categories_raw)
-
-                if categories_raw:
-                    logger.info(
-                        f"[sync_urls] Mytek REST API : "
-                        f"{len(categories_raw)} catégories trouvées"
-                    )
-                else:
-                    logger.warning(
-                        "[sync_urls] Mytek REST API : arbre renvoyé vide"
-                    )
-            elif r.status_code == 401:
-                logger.warning(
-                    "[sync_urls] Mytek REST API : protégée par token (401)"
-                )
-            else:
-                logger.warning(
-                    f"[sync_urls] Mytek REST API : HTTP {r.status_code}"
-                )
-
-    except Exception as e:
-        logger.warning(f"[sync_urls] Mytek REST API échouée : {e}")
-
-    if categories_raw:
-        return _deduplicate_categories(categories_raw)
-
-    # ── Stratégie 2 : curl_cffi HTML ────────────────────────────────────────
-    logger.info("[sync_urls] Mytek : fallback vers curl_cffi HTML…")
-    try:
-        async with AsyncSession(
-            impersonate="chrome124", verify=False, timeout=20
-        ) as client:
-            r = await client.get(
-                "https://www.mytek.tn/", headers=HEADERS_MYTEK_HTML
-            )
-
-            if r.status_code == 200 and "Just a moment" not in r.text:
-                tree = selectolax.parser.HTMLParser(r.text)
-                _parse_mytek_menu_html(tree, categories_raw)
-
-                if categories_raw:
-                    logger.info(
-                        f"[sync_urls] Mytek HTML : "
-                        f"{len(categories_raw)} catégories trouvées"
-                    )
-                else:
-                    logger.warning(
-                        "[sync_urls] Mytek HTML : menu vide ou non détecté"
-                    )
-            else:
-                logger.warning(
-                    f"[sync_urls] Mytek HTML bloqué par Cloudflare "
-                    f"(HTTP {r.status_code})"
-                )
-
-    except Exception as e:
-        logger.warning(f"[sync_urls] Mytek HTML échoué : {e}")
-
-    result = _deduplicate_categories(categories_raw)
-    logger.info(f"[sync_urls] Mytek : {len(result)} catégories uniques")
-    return result
+    logger.error("[mytek] Impossible de récupérer les catégories (toutes les stratégies ont échoué).")
+    return []
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Tâche de sync URLs
+#  PARTIE 2 : Task sync URLs
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _run_sync_urls_task(task_id: str) -> None:
@@ -452,7 +450,7 @@ def _run_sync_urls_task(task_id: str) -> None:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PARTIE 2 : Scraping de produits depuis les CategoryUrl en DB
+#  PARTIE 3 : Scraping de produits depuis les CategoryUrl en DB
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _run_scrape_task(
