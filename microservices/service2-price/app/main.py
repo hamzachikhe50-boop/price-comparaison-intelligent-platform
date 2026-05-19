@@ -62,7 +62,7 @@ def on_startup():
 
 # ── Santé ──────────────────────────────────────────────────────────────────────
 
-@app.get("/", tags=["Général"])
+@app.get("/health", tags=["Général"])
 def health_check(db: Session = Depends(get_db)):
     import os, re
     from sqlalchemy import text
