@@ -84,10 +84,12 @@ def on_startup():
 
 # ── Santé ──────────────────────────────────────────────────────────────────────
 
-@app.get("/", tags=["Général"])
-def health_check():
-    return {"status": "ok", "service": "scraping", "port": 8001}
+# ── Remplacer l'existing health check par ceci ────────────────────────────
 
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Général"])
+async def health_check():
+    """Health check compatible avec les probes HEAD de Render."""
+    return {"status": "ok", "service": "scraping", "port": 8001}
 
 # ── Sync URLs ──────────────────────────────────────────────────────────────────
 

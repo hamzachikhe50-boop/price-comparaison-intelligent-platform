@@ -9,4 +9,4 @@ apscheduler==3.10.4
 beautifulsoup4==4.14.3
 lxml==6.1.0
 greenlet
-playwright
+curl_cffi
