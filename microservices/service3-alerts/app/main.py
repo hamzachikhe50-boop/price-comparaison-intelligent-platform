@@ -134,6 +134,12 @@ def health_check(db: Session = Depends(get_db)):
 
 # ── CRUD Alertes ───────────────────────────────────────────────────────────────
 
+# EN HAUT DE main.py, AJOUTE BackgroundTasks :
+from fastapi import FastAPI, Depends, HTTPException, Query, BackgroundTasks
+
+# ...
+
+# REMPLACE L'ANCIENNE FONCTION creer_alerte PAR CELLE-CI :
 @app.post(
     "/alerts",
     response_model=schemas.AlertResponse,
@@ -141,12 +147,10 @@ def health_check(db: Session = Depends(get_db)):
     tags=["Alertes"],
     summary="Créer une alerte de prix",
 )
-def creer_alerte(body: schemas.AlertCreate, db: Session = Depends(get_db)):
+def creer_alerte(body: schemas.AlertCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
-    Crée une alerte.
-    Priorité intelligente :
-    1. Si prix DB valide -> Prix DB
-    2. Si prix DB invalide (< 2) -> Prix Frontend (Temps réel)
+    Crée une alerte et envoie l'email de confirmation en arrière-plan.
+    L'API répond instantanément au frontend.
     """
     # 1. Récupérer le produit depuis la DB
     produit = db.query(Product).filter(Product.id == body.product_id).first()
@@ -161,8 +165,6 @@ def creer_alerte(body: schemas.AlertCreate, db: Session = Depends(get_db)):
     final_prix_actuel = produit.prix_num
     
     # HEURISTIQUE DE CORRECTION :
-    # Si le prix dans la BD est inférieur à 2 DT (probablement une erreur de scraping, ex: 1 DT)
-    # ET que le frontend nous a envoyé un prix sensé (> 2 DT)
     if (final_prix_actuel is None or final_prix_actuel < 2) and (body.prix_actuel and body.prix_actuel > 2):
         logger.warning(f"[alerts] Correction Prix: DB={final_prix_actuel} -> Frontend={body.prix_actuel} (Produit ID {body.product_id})")
         final_prix_actuel = body.prix_actuel
@@ -176,20 +178,21 @@ def creer_alerte(body: schemas.AlertCreate, db: Session = Depends(get_db)):
     if not product_url:
         product_url = produit.lien or ""
 
-    # 4. Créer l'alerte
+    # 4. Créer l'alerte en BDD
     alerte = crud.creer_alerte(
         db,
         user_id      = body.user_id,
         user_email   = body.user_email,
         product_id   = body.product_id,
         prix_cible   = body.prix_cible,
-        prix_actuel  = final_prix_actuel, # Utilise le prix corrigé
+        prix_actuel  = final_prix_actuel,
         product_name = product_name,
         product_url  = product_url,
     )
 
-    # 5. Email de confirmation
-    envoyer_confirmation_alerte(
+    # 5. Email de confirmation EN TÂCHE DE FOND (NON BLOQUANT)
+    background_tasks.add_task(
+        envoyer_confirmation_alerte,
         destinataire = body.user_email,
         product_name = product_name,
         product_url  = product_url,
@@ -198,6 +201,7 @@ def creer_alerte(body: schemas.AlertCreate, db: Session = Depends(get_db)):
         alerte_id    = alerte.id,
     )
 
+    # 6. On retourne l'alerte IMMÉDIATEMENT au frontend (avant même que l'email soit parti)
     return alerte
 
 
