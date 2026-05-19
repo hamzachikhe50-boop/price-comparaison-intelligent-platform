@@ -86,7 +86,7 @@ def on_startup():
 
 # ── Remplacer l'existing health check par ceci ────────────────────────────
 
-@app.get("/health", tags=["Général"])
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
     """Health check compatible avec les probes HEAD de Render."""
     return {"status": "ok", "service": "scraping", "port": 8001}
