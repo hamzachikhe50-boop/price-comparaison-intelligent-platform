@@ -75,6 +75,16 @@ HEADERS_MYTEK = {
 
 MYTEK_PROXY = os.environ.get("MYTEK_PROXY", "")
 
+# ============================================================
+#  MYTEK — MAGENTO REST API (contourne Cloudflare)
+# ============================================================
+MYTEK_REST_BASE = "https://www.mytek.tn/rest/V1"
+HEADERS_MYTEK_API = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8",
+}
+
 IMAGE_CACHE = {}
 MAX_IMAGE_CACHE = 500
 
@@ -223,95 +233,170 @@ def _extraire_produits_mytek(tree, page_num, temps_scrape):
     return []
 
 # ============================================================
-#  WORKER MYTEK AVEC CURL_CFI (LOGS DÉTAILLÉS)
+#  WORKER MYTEK — STRATÉGIE 1: MAGENTO REST API (sans Cloudflare)
 # ============================================================
-async def scraper_mytek_worker(queue: asyncio.Queue, query: str, max_pages: int = 10):
-    print(f"🟢 [MYTEK WORKER] Démarrage pour la requête: '{query}'", flush=True)
-    client = await get_curl_client()
+async def _mytek_via_rest_api(queue: asyncio.Queue, query: str, max_pages: int = 10) -> bool:
+    """
+    Utilise l'API REST Magento native de Mytek.
+    Les endpoints /rest/V1/ ne passent généralement pas par le WAF Cloudflare.
+    """
+    print(f"🔵 [MYTEK REST] Tentative via API Magento pour: '{query}'", flush=True)
+    client = await get_http_client()
+    PAGE_SIZE = 20
+    produits_trouves = False
 
-    search_urls = [
-        {"base": "https://www.mytek.tn/catalogsearch/result/?q={query}", "page": "https://www.mytek.tn/catalogsearch/result/?q={query}&p={page}"},
-    ]
+    for page_num in range(1, max_pages + 1):
+        start = time.time()
+        # Magento REST search: filtre sur name + sku, wildcard %query%
+        params = (
+            f"searchCriteria[filterGroups][0][filters][0][field]=name"
+            f"&searchCriteria[filterGroups][0][filters][0][value]=%25{query}%25"
+            f"&searchCriteria[filterGroups][0][filters][0][conditionType]=like"
+            f"&searchCriteria[pageSize]={PAGE_SIZE}"
+            f"&searchCriteria[currentPage]={page_num}"
+            f"&fields=items[id,sku,name,price,custom_attributes,media_gallery_entries]"
+        )
+        url = f"{MYTEK_REST_BASE}/products?{params}"
+        try:
+            r = await client.get(url, headers=HEADERS_MYTEK_API, timeout=15.0)
+            print(f"📥 [MYTEK REST] Page {page_num} → HTTP {r.status_code}", flush=True)
 
-    MAX_RETRIES = 2 # Réduit pour ne pas bloquer l'API trop longtemps sur Render
+            if r.status_code == 401:
+                # Endpoint protégé par token — on abandonne cette stratégie
+                print("🔒 [MYTEK REST] API protégée par token, abandon.", flush=True)
+                return False
 
-    warmup_ok = await _mytek_warmup(client)
-    if not warmup_ok:
-        print("🛑 [MYTEK WORKER] Warmup échoué, les requêtes vont probablement échouer aussi.", flush=True)
+            if r.status_code != 200:
+                print(f"❌ [MYTEK REST] Erreur {r.status_code}, abandon.", flush=True)
+                return False
 
-    for url_conf in search_urls:
-        produits_trouves = False
-        for page_num in range(1, max_pages + 1):
-            start = time.time()
-            target_url = url_conf["base"].format(query=query) if page_num == 1 else url_conf["page"].format(query=query, page=page_num)
-            print(f"🌐 [MYTEK WORKER] Cible: {target_url}", flush=True)
-
-            html = None
-            for attempt in range(1, MAX_RETRIES + 1):
-                print(f"⏳ [MYTEK WORKER] Tentative {attempt}/{MAX_RETRIES}...", flush=True)
-                try:
-                    r = await client.get(target_url, headers=HEADERS_MYTEK, timeout=20.0)
-
-                    # LOGS CRITIQUES
-                    print(f"📥 [MYTEK WORKER] Statut HTTP: {r.status_code}", flush=True)
-                    snippet = r.text[:200].replace('\n', ' ').replace('\r', '')
-                    print(f"📄 [MYTEK WORKER] Début HTML: {snippet}...", flush=True)
-
-                    if r.status_code == 200:
-                        if "Just a moment" in r.text or "Checking your browser" in r.text:
-                            print(f"🛑 [MYTEK WORKER] Cloudflare challenge détecté dans le HTML !", flush=True)
-                            await asyncio.sleep(2.0)
-                            continue
-                        html = r.text
-                        print(f"✅ [MYTEK WORKER] HTML valide reçu !", flush=True)
-                        break
-
-                    elif r.status_code == 403:
-                        print(f"🛑 [MYTEK WORKER] 403 Forbidden ! L'IP de Render est bloquée.", flush=True)
-                        break # Ne pas retry sur un 403, ça ne servira à rien sans proxy
-
-                    elif r.status_code == 503:
-                        print(f"⚠️ [MYTEK WORKER] 503 Service Unavailable.", flush=True)
-                        await asyncio.sleep(3.0)
-                        continue
-
-                    else:
-                        print(f"❌ [MYTEK WORKER] Autre erreur HTTP: {r.status_code}", flush=True)
-                        break
-
-                except asyncio.TimeoutError:
-                    print(f"⏱️ [MYTEK WORKER] Timeout curl_cffi !", flush=True)
-                    continue
-                except Exception as e:
-                    print(f"❌ [MYTEK WORKER] Exception curl_cffi: {e}", flush=True)
-                    global _curl_client
-                    try: await _curl_client.close()
-                    except: pass
-                    _curl_client = None
-                    client = await get_curl_client()
-                    continue
-
-            if not html:
-                if page_num == 1: print("🛑 [MYTEK WORKER] ABANDON : Impossible d'accéder à la page.", flush=True)
+            data = r.json()
+            items = data.get("items", [])
+            if not items:
+                print(f"📭 [MYTEK REST] Aucun item page {page_num}, fin pagination.", flush=True)
                 break
 
-            tree = selectolax.parser.HTMLParser(html)
+            temps_scrape = round(time.time() - start, 2)
+            produits_page = []
+            for item in items:
+                # Extraire les custom_attributes utiles
+                attrs = {a["attribute_code"]: a["value"] for a in item.get("custom_attributes", [])}
+                # Image principale
+                img_src = ""
+                gallery = item.get("media_gallery_entries", [])
+                if gallery:
+                    img_src = f"https://www.mytek.tn/pub/media/catalog/product{gallery[0].get('file', '')}"
+                # Prix
+                prix = item.get("price", "")
+                prix_str = f"{prix} TND" if prix else ""
+                # URL produit via url_key
+                url_key = attrs.get("url_key", "")
+                lien = f"https://www.mytek.tn/{url_key}.html" if url_key else ""
+
+                produits_page.append({
+                    "nom": item.get("name", ""),
+                    "prix": prix_str,
+                    "image": img_src,
+                    "lien": lien,
+                    "boutique": "Mytek",
+                    "page": page_num,
+                    "temps_scrape": temps_scrape,
+                    "reference": item.get("sku", ""),
+                    "description": attrs.get("short_description", ""),
+                })
+
+            if produits_page:
+                produits_trouves = True
+                await queue.put({"boutique": "Mytek", "produits": produits_page, "page": page_num, "count": len(produits_page)})
+                print(f"📦 [MYTEK REST] P{page_num}: {len(produits_page)} produits ({temps_scrape}s)", flush=True)
+
+            if len(items) < PAGE_SIZE:
+                break  # Dernière page
+            await asyncio.sleep(0.3)
+
+        except Exception as e:
+            print(f"❌ [MYTEK REST] Exception: {e}", flush=True)
+            return False
+
+    return produits_trouves
+
+
+# ============================================================
+#  WORKER MYTEK — STRATÉGIE 2: SCRAPING HTML VIA PROXY
+# ============================================================
+async def _mytek_via_proxy(queue: asyncio.Queue, query: str, max_pages: int = 10) -> bool:
+    """
+    Scraping HTML classique via un proxy résidentiel (MYTEK_PROXY env var).
+    Format attendu: http://user:pass@host:port  ou  socks5://host:port
+    """
+    if not MYTEK_PROXY:
+        print("⚠️ [MYTEK PROXY] Aucun proxy configuré (MYTEK_PROXY vide), abandon.", flush=True)
+        return False
+
+    print(f"🟡 [MYTEK PROXY] Tentative via proxy pour: '{query}'", flush=True)
+    client = await get_curl_client()
+    produits_trouves = False
+
+    for page_num in range(1, max_pages + 1):
+        start = time.time()
+        if page_num == 1:
+            target_url = f"https://www.mytek.tn/catalogsearch/result/?q={query}"
+        else:
+            target_url = f"https://www.mytek.tn/catalogsearch/result/?q={query}&p={page_num}"
+
+        try:
+            r = await client.get(target_url, headers=HEADERS_MYTEK, timeout=20.0)
+            print(f"📥 [MYTEK PROXY] Page {page_num} → HTTP {r.status_code}", flush=True)
+
+            if r.status_code == 403 or "Just a moment" in r.text or "Checking your browser" in r.text:
+                print("🛑 [MYTEK PROXY] Toujours bloqué malgré le proxy.", flush=True)
+                return False
+
+            if r.status_code != 200:
+                break
+
+            tree = selectolax.parser.HTMLParser(r.text)
             temps_scrape = round(time.time() - start, 2)
             produits_page = _extraire_produits_mytek(tree, page_num, temps_scrape)
 
             if not produits_page:
-                if page_num == 1: print(f"❌ [MYTEK WORKER] 0 produit extrait de {target_url}", flush=True)
                 break
 
             produits_trouves = True
             await queue.put({"boutique": "Mytek", "produits": produits_page, "page": page_num, "count": len(produits_page)})
-            print(f"📦 [MYTEK WORKER] P{page_num}: {len(produits_page)} produits via curl_cffi ({temps_scrape}s)", flush=True)
+            print(f"📦 [MYTEK PROXY] P{page_num}: {len(produits_page)} produits ({temps_scrape}s)", flush=True)
 
-            if len(produits_page) < 25: break
-            await asyncio.sleep(1.0)
+            if len(produits_page) < 25:
+                break
+            await asyncio.sleep(0.5)
 
-        if produits_trouves:
+        except Exception as e:
+            print(f"❌ [MYTEK PROXY] Exception: {e}", flush=True)
             break
+
+    return produits_trouves
+
+
+# ============================================================
+#  WORKER MYTEK — ORCHESTRATEUR (REST API → Proxy → Abandon)
+# ============================================================
+async def scraper_mytek_worker(queue: asyncio.Queue, query: str, max_pages: int = 10):
+    print(f"🟢 [MYTEK WORKER] Démarrage pour: '{query}'", flush=True)
+
+    # Stratégie 1 : API REST Magento (rapide, sans Cloudflare)
+    ok = await _mytek_via_rest_api(queue, query, max_pages)
+    if ok:
+        print("✅ [MYTEK WORKER] Succès via API REST.", flush=True)
+        return
+
+    # Stratégie 2 : Scraping HTML + proxy résidentiel
+    print("🔄 [MYTEK WORKER] Fallback → proxy HTML...", flush=True)
+    ok = await _mytek_via_proxy(queue, query, max_pages)
+    if ok:
+        print("✅ [MYTEK WORKER] Succès via proxy.", flush=True)
+        return
+
+    print("🛑 [MYTEK WORKER] Toutes les stratégies ont échoué.", flush=True)
 
 # ============================================================
 #  FLUX DE RECHERCHE ET COMPARAISON
