@@ -147,9 +147,15 @@ def upsert_products(db: Session, products: List[Dict]) -> Dict[str, int]:
     CHUNK_SIZE = 2000
     for i in range(0, len(price_dailies), CHUNK_SIZE):
         chunk = price_dailies[i:i + CHUNK_SIZE]
-        stmt = pg_insert(PriceDaily).values(chunk).on_conflict_do_update(
+        
+        # CORRECTION : on instancie stmt d'abord, puis on utilise stmt.excluded
+        stmt = pg_insert(PriceDaily).values(chunk)
+        stmt = stmt.on_conflict_do_update(
             constraint='uq_product_jour',
-            set_=dict(prix_num=pg_insert.excluded.prix_num, prix_txt=pg_insert.excluded.prix_txt)
+            set_={
+                "prix_num": stmt.excluded.prix_num, 
+                "prix_txt": stmt.excluded.prix_txt
+            }
         )
         db.execute(stmt)
 
