@@ -9,7 +9,6 @@ import threading
 import time
 import re
 import os
-from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Dict, Any
 
 import httpx
@@ -27,9 +26,6 @@ from app.scrapers.tunisianet import TunisianetScraper
 from app.scrapers.mytek import MytekScraper
 
 logger = logging.getLogger(__name__)
-
-# ── Pool de threads (3 max : un par site) ─────────────────────────────────────
-executor = ThreadPoolExecutor(max_workers=3)
 
 # ── Registre des scrapers de produits ─────────────────────────────────────────
 SCRAPERS = {
@@ -85,7 +81,6 @@ HEADERS_MYTEK_API = {
     "Accept-Language": "fr-FR,fr;q=0.9",
 }
 
-# Configuration HTML pour Spacenet et Tunisianet
 CONFIGS_HTML = {
     "Spacenet": {
         "url":            "https://spacenet.tn",
@@ -177,10 +172,6 @@ async def _fetch_html_categories(boutique: str) -> List[Dict]:
     return unique
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  _fetch_mytek_categories  —  curl_cffi + API REST Magento (sans Playwright)
-# ══════════════════════════════════════════════════════════════════════════════
-
 def _make_mytek_session() -> AsyncSession:
     proxy = MYTEK_PROXY if MYTEK_PROXY else None
     return AsyncSession(
@@ -192,9 +183,6 @@ def _make_mytek_session() -> AsyncSession:
 
 
 async def _fetch_mytek_via_rest_api() -> Optional[List[Dict]]:
-    """
-    Stratégie 1 : API REST Magento /rest/V1/categories
-    """
     logger.info("[mytek REST] Récupération des catégories via API Magento...")
     categories: List[Dict] = []
 
@@ -275,9 +263,6 @@ async def _fetch_mytek_via_rest_api() -> Optional[List[Dict]]:
 
 
 async def _fetch_mytek_via_html() -> List[Dict]:
-    """
-    Stratégie 2 : Scraping HTML curl_cffi de la homepage Mytek.
-    """
     logger.info("[mytek HTML] Fallback scraping HTML de la homepage Mytek...")
     categories_raw: List[Dict] = []
 
@@ -355,9 +340,6 @@ async def _fetch_mytek_via_html() -> List[Dict]:
 
 
 async def _fetch_mytek_categories() -> List[Dict]:
-    """
-    Orchestrateur pour récupérer les catégories Mytek.
-    """
     result = await _fetch_mytek_via_rest_api()
     if result:
         logger.info(f"[mytek] Catégories obtenues via REST API ({len(result)} entrées).")
@@ -427,7 +409,7 @@ def _run_sync_urls_task(task_id: str) -> None:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PARTIE 3 : Scraping de produits - VERSION OPTIMISEE MEMOIRE
+#  PARTIE 3 : Scraping de produits - UPSERT PAR SITE (Optimisé)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _run_scrape_task(
@@ -491,6 +473,9 @@ def _run_scrape_task(
 
             scraper = ScraperClass()
 
+            # On stocke les produits de tout le site ici
+            site_products = []
+
             for idx, cat in enumerate(cat_urls):
                 cat_dict = {
                     "id":             cat.id,
@@ -504,7 +489,6 @@ def _run_scrape_task(
                     break
 
                 try:
-                    # On scrape UNE SEULE catégorie à la fois pour limiter la RAM
                     products = scraper.scrape_urls(
                         category_urls=[cat_dict],
                         max_pages=max_pages,
@@ -518,17 +502,30 @@ def _run_scrape_task(
                     db.rollback()
                     continue
 
-                if not products:
-                    continue
+                if products:
+                    site_products.extend(products)
 
-                total_scraped += len(products)
+                # Log de progression du scraping
+                if (idx + 1) % 10 == 0 or idx == len(cat_urls) - 1:
+                    logger.info(
+                        f"[service] {boutique_label} scraping progression : "
+                        f"{idx + 1}/{len(cat_urls)} catégories — "
+                        f"{len(site_products)} produits en mémoire"
+                    )
 
-                # Insérer immédiatement en DB (batches de 300)
-                BATCH_SIZE = 300
-                for i in range(0, len(products), BATCH_SIZE):
-                    batch = products[i : i + BATCH_SIZE]
+            # ──────────────────────────────────────────────────────────────────
+            # UNE FOIS LE SITE ENTIEREMENT SCRAPPÉ : On insère tout en DB
+            # ──────────────────────────────────────────────────────────────────
+            
+            if site_products:
+                logger.info(f"[service] Début upsert DB pour {boutique_label} ({len(site_products)} produits)...")
+                total_scraped += len(site_products)
+
+                BATCH_SIZE = 500
+                for i in range(0, len(site_products), BATCH_SIZE):
+                    batch = site_products[i : i + BATCH_SIZE]
                     try:
-                        # Vérifier connexion DB avant d'insérer
+                        # Vérifier connexion DB
                         try:
                             db.execute(text("SELECT 1"))
                         except Exception:
@@ -541,39 +538,41 @@ def _run_scrape_task(
                             db = SessionLocal()
 
                         result = crud.upsert_products(db, batch)
-                        total_inserted += result["inserted"]
-                        total_updated  += result["updated"]
+                        total_inserted += result.get("inserted", 0)
+                        total_updated  += result.get("updated", 0)
+
+                        # Forcer le commit
+                        try:
+                            db.commit()
+                        except Exception as commit_err:
+                            logger.error(f"[service] Erreur commit DB, rollback : {commit_err}")
+                            db.rollback()
 
                     except Exception as e:
-                        logger.error(f"[service] Erreur upsert batch : {e}")
+                        logger.error(f"[service] Erreur upsert batch, rollback : {e}")
                         db.rollback()
                         continue
 
-                # Marquer catégorie comme scrapée
+                # Marquer toutes les catégories de ce site comme scrapées
                 try:
-                    crud.mark_category_scraped(db, cat.id)
-                except Exception:
+                    scraped_cat_ids = {p["category_url_id"] for p in site_products if p.get("category_url_id")}
+                    for cat_id in scraped_cat_ids:
+                        crud.mark_category_scraped(db, cat_id)
+                    db.commit()
+                except Exception as e:
+                    logger.error(f"[service] Erreur marquage catégories : {e}")
                     db.rollback()
 
-                # Libérer la mémoire immédiatement
-                del products
+                # VIDER LA MÉMOIRE avant de passer au site suivant
+                del site_products
 
-                # Log de progression
-                if (idx + 1) % 10 == 0 or idx == len(cat_urls) - 1:
-                    logger.info(
-                        f"[service] {boutique_label} progression : "
-                        f"{idx + 1}/{len(cat_urls)} catégories — "
-                        f"{total_scraped} produits scrapés au total"
-                    )
+            logger.info(
+                f"[service] ✅ {boutique_label} terminé et sauvegardé en DB"
+            )
 
             if _is_cancelled(task_id):
                 logger.info(f"[service] Tâche annulée pendant {boutique_label}")
                 break
-
-            logger.info(
-                f"[service] {boutique_label} terminé — "
-                f"{total_scraped} produits scrapés au total"
-            )
 
         # Mise à jour du statut final
         if _is_cancelled(task_id):
@@ -594,7 +593,7 @@ def _run_scrape_task(
                 total_updated  = total_updated,
             )
             logger.info(
-                f"[service] Tâche {task_id[:8]} terminée : "
+                f"[service] 🎉 Tâche {task_id[:8]} terminée : "
                 f"{total_scraped} scrapés, {total_inserted} insérés, {total_updated} mis à jour"
             )
 
@@ -621,7 +620,8 @@ def start_sync_urls_task(db: Session) -> str:
     task_id = str(uuid.uuid4())
     _cancel_flags[task_id] = threading.Event()
     crud.create_task(db, task_id=task_id, site="sync-urls", categories=None)
-    executor.submit(_run_sync_urls_task, task_id)
+    t = threading.Thread(target=_run_sync_urls_task, args=(task_id,), daemon=True)
+    t.start()
     logger.info(f"[service] Sync URLs soumis : {task_id[:8]}")
     return task_id
 
@@ -635,7 +635,8 @@ def start_scrape_task(
     task_id = str(uuid.uuid4())
     _cancel_flags[task_id] = threading.Event()
     crud.create_task(db, task_id=task_id, site=site, categories=categories)
-    executor.submit(_run_scrape_task, task_id, site, categories, max_pages)
+    t = threading.Thread(target=_run_scrape_task, args=(task_id, site, categories, max_pages), daemon=True)
+    t.start()
     logger.info(f"[service] Scraping soumis : {task_id[:8]} ({site})")
     return task_id
 
@@ -667,6 +668,4 @@ def get_available_categories(site: str) -> Optional[List[str]]:
     finally:
         db.close()
 
-# Ligne de vérification pour confirmer que le fichier est chargé entièrement
-logger.info("Module scraper_service.py chargé avec succès - Toutes fonctions présentes")
-# FIN DU FICHIER
+logger.info("Module scraper_service.py chargé avec succès")
