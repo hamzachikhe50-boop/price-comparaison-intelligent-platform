@@ -1,7 +1,5 @@
 """
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  scraper_service.py  –  Orchestration du scraping
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+scraper_service.py  -  Orchestration du scraping
 """
 
 import uuid
@@ -19,7 +17,7 @@ import selectolax.parser
 from curl_cffi.requests import AsyncSession
 
 from sqlalchemy.orm import Session
-from sqlalchemy import text  # ✅ Ajouté pour le healthcheck DB
+from sqlalchemy import text
 
 from app import crud
 from app.models import TaskStatus
@@ -196,8 +194,6 @@ def _make_mytek_session() -> AsyncSession:
 async def _fetch_mytek_via_rest_api() -> Optional[List[Dict]]:
     """
     Stratégie 1 : API REST Magento /rest/V1/categories
-    Récupère l'arborescence complète des catégories sans toucher au WAF Cloudflare.
-    Retourne None si l'API est protégée (401) ou inaccessible.
     """
     logger.info("[mytek REST] Récupération des catégories via API Magento...")
     categories: List[Dict] = []
@@ -209,7 +205,7 @@ async def _fetch_mytek_via_rest_api() -> Optional[List[Dict]]:
                 headers=HEADERS_MYTEK_API,
                 timeout=15,
             )
-            logger.info(f"[mytek REST] /categories → HTTP {r.status_code}")
+            logger.info(f"[mytek REST] /categories -> HTTP {r.status_code}")
 
             if r.status_code == 401:
                 logger.info("[mytek REST] API protégée par token, abandon.")
@@ -226,9 +222,7 @@ async def _fetch_mytek_via_rest_api() -> Optional[List[Dict]]:
             return None
 
     def _parse_category_tree(node, parent_name: str = "") -> None:
-        """Parcours récursif de l'arborescence Magento."""
         name      = node.get("name", "").strip()
-        cat_id    = node.get("id")
         level     = node.get("level", 0)
         is_active = node.get("is_active", False)
         children  = node.get("children_data", [])
@@ -238,23 +232,19 @@ async def _fetch_mytek_via_rest_api() -> Optional[List[Dict]]:
                 _parse_category_tree(child, parent_name)
             return
 
-        # Trouver l'URL via custom_attributes
         url_key = ""
         for attr in node.get("custom_attributes", []):
             if attr.get("attribute_code") == "url_key":
                 url_key = attr.get("value", "")
                 break
         if not url_key and name:
-            # Fallback : construire l'url_key depuis le nom
             url_key = re.sub(r"[^a-z0-9-]", "-", name.lower()).strip("-")
 
-        # Niveau 2 = rayon, niveau 3+ = sous-catégorie
         if level == 2:
             rayon = name
             for child in children:
                 _parse_category_tree(child, rayon)
         else:
-            # Sous-catégorie feuille (ou niveau intermédiaire avec children)
             rayon = parent_name or "Divers"
             if url_key:
                 cat_url = f"https://www.mytek.tn/{url_key}.html"
@@ -273,7 +263,6 @@ async def _fetch_mytek_via_rest_api() -> Optional[List[Dict]]:
         logger.warning("[mytek REST] Aucune catégorie extraite depuis l'arbre.")
         return None
 
-    # Dédoublonnage
     seen   = set()
     unique = []
     for item in categories:
@@ -288,8 +277,6 @@ async def _fetch_mytek_via_rest_api() -> Optional[List[Dict]]:
 async def _fetch_mytek_via_html() -> List[Dict]:
     """
     Stratégie 2 : Scraping HTML curl_cffi de la homepage Mytek.
-    Le menu de navigation est rendu côté serveur sur la homepage.
-    Sélecteurs basés sur la structure Magento de mytek.tn.
     """
     logger.info("[mytek HTML] Fallback scraping HTML de la homepage Mytek...")
     categories_raw: List[Dict] = []
@@ -301,7 +288,7 @@ async def _fetch_mytek_via_html() -> List[Dict]:
                 headers=HEADERS_MYTEK_HTML,
                 timeout=20,
             )
-            logger.info(f"[mytek HTML] Homepage → HTTP {r.status_code}")
+            logger.info(f"[mytek HTML] Homepage -> HTTP {r.status_code}")
 
             if r.status_code == 403 or "Just a moment" in r.text or "Checking your browser" in r.text:
                 logger.warning("[mytek HTML] Cloudflare actif, impossible de scraper la homepage.")
@@ -312,16 +299,13 @@ async def _fetch_mytek_via_html() -> List[Dict]:
 
             tree = selectolax.parser.HTMLParser(r.text)
 
-            # Sélecteurs du menu Mytek (structure Magento)
             rayon_items = tree.css("ul.vertical-list > li.rootverticalnav")
             if not rayon_items:
-                # Fallback sélecteur alternatif
                 rayon_items = tree.css("nav li.level0, ul.nav-sections li.level0")
 
             logger.info(f"[mytek HTML] {len(rayon_items)} rayons détectés dans le HTML.")
 
             for rayon_node in rayon_items:
-                # Nom du rayon
                 rayon_name = ""
                 for sel in ["span.main-category-name", "span.menu-title", "a > span", "a"]:
                     n = rayon_node.css_first(sel)
@@ -333,7 +317,6 @@ async def _fetch_mytek_via_html() -> List[Dict]:
                 if not rayon_name or len(rayon_name) < 2:
                     continue
 
-                # Sous-catégories dans le mega-menu
                 submenu = rayon_node.css_first("div.vertical_fullwidthmenu, div.submenu, ul.level1")
                 if not submenu:
                     continue
@@ -374,17 +357,12 @@ async def _fetch_mytek_via_html() -> List[Dict]:
 async def _fetch_mytek_categories() -> List[Dict]:
     """
     Orchestrateur pour récupérer les catégories Mytek.
-    Stratégie 1 : API REST Magento (sans Cloudflare, gratuit)
-    Stratégie 2 : Scraping HTML curl_cffi (fallback)
-    Aucun Playwright — compatible Render.com.
     """
-    # Stratégie 1 : API REST
     result = await _fetch_mytek_via_rest_api()
     if result:
         logger.info(f"[mytek] Catégories obtenues via REST API ({len(result)} entrées).")
         return result
 
-    # Stratégie 2 : HTML scraping
     logger.info("[mytek] Fallback vers scraping HTML...")
     result = await _fetch_mytek_via_html()
     if result:
@@ -448,4 +426,247 @@ def _run_sync_urls_task(task_id: str) -> None:
         _cancel_flags.pop(task_id, None)
 
 
-# ═══════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+#  PARTIE 3 : Scraping de produits - VERSION OPTIMISEE MEMOIRE
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _run_scrape_task(
+    task_id:    str,
+    site:       str,
+    rayons:     Optional[List[str]],
+    max_pages:  int,
+) -> None:
+    db: Session = SessionLocal()
+    try:
+        crud.update_task_status(db, task_id, TaskStatus.RUNNING)
+        logger.info(f"[service] Scraping produits démarré — tâche {task_id[:8]} ({site})")
+
+        total_scraped  = 0
+        total_inserted = 0
+        total_updated  = 0
+
+        if site == "all":
+            boutiques = ["Spacenet", "Tunisianet", "Mytek"]
+        else:
+            label_map = {
+                "spacenet":   "Spacenet",
+                "tunisianet": "Tunisianet",
+                "mytek":      "Mytek",
+            }
+            boutiques = [label_map.get(site, site)]
+
+        for boutique_label in boutiques:
+
+            if _is_cancelled(task_id):
+                logger.info(f"[service] Tâche {task_id[:8]} annulée avant {boutique_label}")
+                break
+
+            logger.info(f"[service] ==================================================")
+            logger.info(f"[service] Demarrage scraping {boutique_label}...")
+            logger.info(f"[service] ==================================================")
+
+            site_key = boutique_label.lower()
+            cat_urls = crud.get_category_urls(
+                db,
+                boutique=boutique_label,
+                active_only=True,
+            )
+
+            if rayons:
+                cat_urls = [c for c in cat_urls if c.rayon in rayons]
+
+            if not cat_urls:
+                logger.warning(
+                    f"[service] Aucune URL active pour {boutique_label}. "
+                    f"Lancez d'abord POST /scrape/sync-urls."
+                )
+                continue
+
+            logger.info(f"[service] {boutique_label} : {len(cat_urls)} catégories à scraper")
+
+            ScraperClass = SCRAPERS.get(site_key)
+            if not ScraperClass:
+                logger.error(f"[service] Scraper inconnu : {site_key}")
+                continue
+
+            scraper = ScraperClass()
+
+            for idx, cat in enumerate(cat_urls):
+                cat_dict = {
+                    "id":             cat.id,
+                    "boutique":       cat.boutique,
+                    "rayon":          cat.rayon,
+                    "sous_categorie": cat.sous_categorie,
+                    "url":            cat.url,
+                }
+
+                if _is_cancelled(task_id):
+                    break
+
+                try:
+                    # On scrape UNE SEULE catégorie à la fois pour limiter la RAM
+                    products = scraper.scrape_urls(
+                        category_urls=[cat_dict],
+                        max_pages=max_pages,
+                    )
+                except InterruptedError:
+                    break
+                except Exception as e:
+                    logger.error(
+                        f"[service] Erreur scraping {boutique_label}/{cat.sous_categorie} : {e}"
+                    )
+                    db.rollback()
+                    continue
+
+                if not products:
+                    continue
+
+                total_scraped += len(products)
+
+                # Insérer immédiatement en DB (batches de 300)
+                BATCH_SIZE = 300
+                for i in range(0, len(products), BATCH_SIZE):
+                    batch = products[i : i + BATCH_SIZE]
+                    try:
+                        # Vérifier connexion DB avant d'insérer
+                        try:
+                            db.execute(text("SELECT 1"))
+                        except Exception:
+                            logger.warning("[service] Session DB perdue, reconnexion...")
+                            try:
+                                db.rollback()
+                                db.close()
+                            except Exception:
+                                pass
+                            db = SessionLocal()
+
+                        result = crud.upsert_products(db, batch)
+                        total_inserted += result["inserted"]
+                        total_updated  += result["updated"]
+
+                    except Exception as e:
+                        logger.error(f"[service] Erreur upsert batch : {e}")
+                        db.rollback()
+                        continue
+
+                # Marquer catégorie comme scrapée
+                try:
+                    crud.mark_category_scraped(db, cat.id)
+                except Exception:
+                    db.rollback()
+
+                # Libérer la mémoire immédiatement
+                del products
+
+                # Log de progression
+                if (idx + 1) % 10 == 0 or idx == len(cat_urls) - 1:
+                    logger.info(
+                        f"[service] {boutique_label} progression : "
+                        f"{idx + 1}/{len(cat_urls)} catégories — "
+                        f"{total_scraped} produits scrapés au total"
+                    )
+
+            if _is_cancelled(task_id):
+                logger.info(f"[service] Tâche annulée pendant {boutique_label}")
+                break
+
+            logger.info(
+                f"[service] {boutique_label} terminé — "
+                f"{total_scraped} produits scrapés au total"
+            )
+
+        # Mise à jour du statut final
+        if _is_cancelled(task_id):
+            crud.update_task_status(
+                db, task_id,
+                status         = TaskStatus.FAILED,
+                total_scraped  = total_scraped,
+                total_inserted = total_inserted,
+                total_updated  = total_updated,
+                error_message  = "Arrêté manuellement",
+            )
+        else:
+            crud.update_task_status(
+                db, task_id,
+                status         = TaskStatus.DONE,
+                total_scraped  = total_scraped,
+                total_inserted = total_inserted,
+                total_updated  = total_updated,
+            )
+            logger.info(
+                f"[service] Tâche {task_id[:8]} terminée : "
+                f"{total_scraped} scrapés, {total_inserted} insérés, {total_updated} mis à jour"
+            )
+
+    except Exception as e:
+        logger.error(f"[service] Tâche {task_id[:8]} échouée : {e}", exc_info=True)
+        try:
+            crud.update_task_status(
+                db, task_id,
+                status        = TaskStatus.FAILED,
+                error_message = str(e),
+            )
+        except Exception:
+            pass
+    finally:
+        db.close()
+        _cancel_flags.pop(task_id, None)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  API publique du service
+# ══════════════════════════════════════════════════════════════════════════════
+
+def start_sync_urls_task(db: Session) -> str:
+    task_id = str(uuid.uuid4())
+    _cancel_flags[task_id] = threading.Event()
+    crud.create_task(db, task_id=task_id, site="sync-urls", categories=None)
+    executor.submit(_run_sync_urls_task, task_id)
+    logger.info(f"[service] Sync URLs soumis : {task_id[:8]}")
+    return task_id
+
+
+def start_scrape_task(
+    db:         Session,
+    site:       str,
+    categories: Optional[List[str]],
+    max_pages:  int,
+) -> str:
+    task_id = str(uuid.uuid4())
+    _cancel_flags[task_id] = threading.Event()
+    crud.create_task(db, task_id=task_id, site=site, categories=categories)
+    executor.submit(_run_scrape_task, task_id, site, categories, max_pages)
+    logger.info(f"[service] Scraping soumis : {task_id[:8]} ({site})")
+    return task_id
+
+
+def cancel_scrape_task(task_id: str) -> bool:
+    flag = _cancel_flags.get(task_id)
+    if flag is None:
+        return False
+    flag.set()
+    logger.info(f"[service] Annulation demandée pour {task_id[:8]}")
+    return True
+
+
+def get_available_categories(site: str) -> Optional[List[str]]:
+    label_map = {
+        "spacenet":   "Spacenet",
+        "tunisianet": "Tunisianet",
+        "mytek":      "Mytek",
+    }
+    boutique = label_map.get(site)
+    if not boutique:
+        return None
+
+    db = SessionLocal()
+    try:
+        cats = crud.get_category_urls(db, boutique=boutique, active_only=True)
+        rayons = sorted(set(c.rayon for c in cats))
+        return rayons
+    finally:
+        db.close()
+
+# Ligne de vérification pour confirmer que le fichier est chargé entièrement
+logger.info("Module scraper_service.py chargé avec succès - Toutes fonctions présentes")
+# FIN DU FICHIER
