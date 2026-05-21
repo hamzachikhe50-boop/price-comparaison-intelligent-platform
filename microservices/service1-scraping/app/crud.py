@@ -44,13 +44,16 @@ def parse_price(prix_str: Optional[str]) -> Optional[float]:
 # ─── Produits ──────────────────────────────────────────────────────────────────
 
 def upsert_products(db: Session, products: List[Dict]) -> Dict[str, int]:
-    """Insère ou met à jour les produits + PriceHistory + PriceDaily."""
+    """Insère ou met à jour les produits + PriceHistory + PriceDaily par lots."""
     inserted = 0
     updated = 0
     aujourd_hui = date.today()
     liens_traites = set()
+    
+    # Commit par lot pour éviter que la RAM de SQLAlchemy n'explose sur Render
+    BATCH_SIZE = 500
 
-    for p in products:
+    for i, p in enumerate(products):
         lien     = p.get("lien")
         boutique = p.get("boutique")
 
@@ -104,7 +107,7 @@ def upsert_products(db: Session, products: List[Dict]) -> Dict[str, int]:
                 boutique=boutique, categorie=p.get("categorie"),
             )
             db.add(db_product)
-            db.flush()
+            db.flush() # Flush pour obtenir l'ID du nouveau produit
 
             stmt = pg_insert(PriceDaily).values(
                 product_id=db_product.id, prix_num=prix_num,
@@ -116,8 +119,17 @@ def upsert_products(db: Session, products: List[Dict]) -> Dict[str, int]:
             db.execute(stmt)
             inserted += 1
 
+        # ── Commit par lot et vidage de la session SQLAlchemy ──
+        if (i + 1) % BATCH_SIZE == 0:
+            db.commit()
+            db.expire_all() # Retire les objets de la mémoire (Identity Map)
+            logger.info(f"[crud] upsert en cours... {i + 1}/{len(products)} traités")
+
+    # Commit final pour les produits restants (< BATCH_SIZE)
     db.commit()
-    logger.info(f"[crud] upsert : {inserted} insérés, {updated} mis à jour")
+    db.expire_all()
+    
+    logger.info(f"[crud] upsert terminé : {inserted} insérés, {updated} mis à jour")
     return {"inserted": inserted, "updated": updated}
 
 
