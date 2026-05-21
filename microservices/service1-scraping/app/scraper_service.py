@@ -484,6 +484,11 @@ def _run_scrape_task(
                 logger.info(f"[service] Tâche {task_id[:8]} annulée avant {boutique_label}")
                 break
 
+            # ✅ FIX 3 : Log AVANT chaque boutique
+            logger.info(f"[service] {'='*50}")
+            logger.info(f"[service] 🚀 Démarrage scraping {boutique_label}...")
+            logger.info(f"[service] {'='*50}")
+
             site_key = boutique_label.lower()
             cat_urls = crud.get_category_urls(
                 db,
@@ -508,6 +513,7 @@ def _run_scrape_task(
                 logger.error(f"[service] Scraper inconnu : {site_key}")
                 continue
 
+            # ✅ FIX 4 : Nouveau scraper + refresh session DB si nécessaire
             scraper = ScraperClass()
 
             cat_dicts = [
@@ -527,6 +533,7 @@ def _run_scrape_task(
                         raise InterruptedError(f"Tâche {tid[:8]} annulée")
                 return progress_callback
 
+            # ✅ FIX 2 : try/except autour du scraping ET de l'upsert
             try:
                 products = scraper.scrape_urls(
                     category_urls=cat_dicts,
@@ -536,25 +543,62 @@ def _run_scrape_task(
             except InterruptedError:
                 logger.info(f"[service] Tâche {task_id[:8]} interrompue pendant {boutique_label}")
                 products = []
+            except Exception as e:
+                logger.error(f"[service] ❌ Erreur scraping {boutique_label} : {e}", exc_info=True)
+                # ✅ On CONTINUE vers la boutique suivante au lieu de crasher
+                db.rollback()  # Rollback toute transaction en cours
+                continue
 
             total_scraped += len(products)
+            logger.info(f"[service] {boutique_label} : {len(products)} produits scrapés")
 
+            # ✅ FIX 1 : Batch upsert par morceaux de 500
             if products:
-                result = crud.upsert_products(db, products)
-                total_inserted += result["inserted"]
-                total_updated  += result["updated"]
-                logger.info(
-                    f"[service] {boutique_label} : {result['inserted']} insérés, "
-                    f"{result['updated']} mis à jour"
-                )
+                BATCH_SIZE = 500
+                for i in range(0, len(products), BATCH_SIZE):
+                    batch = products[i : i + BATCH_SIZE]
+                    try:
+                        # ✅ FIX 4 : Refresh session si connexion perdue
+                        try:
+                            db.execute(text("SELECT 1"))
+                        except Exception:
+                            logger.warning(f"[service] Session DB perdue, reconnexion...")
+                            db.rollback()
+                            db.close()
+                            db = SessionLocal()
 
+                        result = crud.upsert_products(db, batch)
+                        total_inserted += result["inserted"]
+                        total_updated  += result["updated"]
+
+                        logger.info(
+                            f"[service] {boutique_label} batch {i//BATCH_SIZE + 1}/"
+                            f"{(len(products)-1)//BATCH_SIZE + 1} : "
+                            f"{result['inserted']} insérés, {result['updated']} mis à jour"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"[service] ❌ Erreur upsert batch {i//BATCH_SIZE + 1} "
+                            f"pour {boutique_label} : {e}", exc_info=True
+                        )
+                        db.rollback()
+                        continue  # Continue avec le batch suivant
+
+                # Marquer catégories comme scrapées
                 scraped_cat_ids = {p["category_url_id"] for p in products if p.get("category_url_id")}
                 for cat_id in scraped_cat_ids:
-                    crud.mark_category_scraped(db, cat_id)
+                    try:
+                        crud.mark_category_scraped(db, cat_id)
+                    except Exception:
+                        db.rollback()
+
+            # ✅ FIX 3 : Log APRÈS chaque boutique
+            logger.info(f"[service] ✅ {boutique_label} terminé — total jusqu'ici : {total_scraped} scrapés")
 
             if _is_cancelled(task_id):
                 break
 
+        # Mise à jour du statut final
         if _is_cancelled(task_id):
             crud.update_task_status(
                 db, task_id,
@@ -579,15 +623,17 @@ def _run_scrape_task(
 
     except Exception as e:
         logger.error(f"[service] Tâche {task_id[:8]} échouée : {e}", exc_info=True)
-        crud.update_task_status(
-            db, task_id,
-            status        = TaskStatus.FAILED,
-            error_message = str(e),
-        )
+        try:
+            crud.update_task_status(
+                db, task_id,
+                status        = TaskStatus.FAILED,
+                error_message = str(e),
+            )
+        except Exception:
+            pass
     finally:
         db.close()
         _cancel_flags.pop(task_id, None)
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  API publique du service
